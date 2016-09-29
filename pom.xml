@@ -24,6 +24,31 @@
         <java.version>1.8</java.version>
     </properties>
 
+    <scm>
+        <connection>scm:git:git@github.com:pramoth/specification-with-projection.git</connection>
+        <developerConnection>scm:git:git@github.com:pramoth/specification-with-projection.git</developerConnection>
+        <url>https://github.com/pramoth/specification-with-projection</url>
+    </scm>
+    <distributionManagement>
+        <repository>
+            <id>Geniustree Release</id>
+            <url>http://nexus.geniustree.ath.cx/content/repositories/geniustree/</url>
+        </repository>
+        <snapshotRepository>
+            <id>Geniustree Snapshots</id>
+            <url>http://nexus.geniustree.ath.cx/content/repositories/GeniustreeSnapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+    <developers>
+        <developer>
+            <id>pramoth@geniustree.co.th</id>
+            <name>Pramoth Suwanpech</name>
+            <email>jpramoth@geniustree.co.th</email>
+            <timezone>+7</timezone>
+            <url>https://github.com/pramoth</url>
+        </developer>
+    </developers>
+
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
