@@ -4,7 +4,7 @@ Support Projections with `JpaSpecificationExecutor.findAll(Specification,Pageabl
 ## How to use
 * add annotation `@EnableJpaRepositories(repositoryBaseClass = JpaSpecificationExecutorWithProjectionImpl.class)` on Application class (Spring Boot)
 * create your repository and extends `JpaSpecificationExecutorWithProjection`
-```
+```java
 public interface DocumentRepository extends JpaRepository<Document,Integer>,JpaSpecificationExecutorWithProjection<Document,Integer> {
     /**
     * projection interface
@@ -20,7 +20,7 @@ public interface DocumentRepository extends JpaRepository<Document,Integer>,JpaS
 ```
 * use it
 
-  ```
+  ```java
       @Test
     public void specificationWithProjection() {
         Specifications<Document> where = Specifications.where(DocumentSpecs.idEq(1L));
