@@ -17,7 +17,7 @@ import java.io.Serializable;
 /**
  * Created by pramoth on 9/29/2016 AD.
  */
-public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializable> extends SimpleJpaRepository<T, ID> implements JpaSpecificationExecutorWithProjection<T, ID> {
+public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializable> extends SimpleJpaRepository<T, ID> implements JpaSpecificationExecutorWithProjection<T> {
     private final EntityManager entityManager;
     private final ProjectionFactory projectionFactory = new SpelAwareProxyProjectionFactory();
 
