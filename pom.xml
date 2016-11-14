@@ -4,7 +4,7 @@
 
     <groupId>th.co.geniustree.springdata.jpa</groupId>
     <artifactId>specification-with-projections</artifactId>
-    <version>1.0.3.RELEASE</version>
+    <version>1.0.4.RELEASE-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>specification-projection</name>
@@ -27,7 +27,7 @@
         <connection>scm:git:git@github.com:pramoth/specification-with-projection.git</connection>
         <developerConnection>scm:git:git@github.com:pramoth/specification-with-projection.git</developerConnection>
         <url>https://github.com/pramoth/specification-with-projection</url>
-      <tag>specification-with-projections-1.0.3.RELEASE</tag>
+      <tag>HEAD</tag>
   </scm>
     <distributionManagement>
         <repository>
