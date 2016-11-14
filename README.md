@@ -28,3 +28,13 @@ public interface DocumentRepository extends JpaRepository<Document,Integer>,JpaS
         Assertions.assertThat(all).isNotEmpty();
     }
   ```
+  * version 1.0.3 RELEASE add support for @NamedEntityGraph and AD-HOC entity graph (via JpaEntityGraph)
+http://docs.spring.io/spring-data/jpa/docs/1.10.4.RELEASE/reference/html/#jpa.entity-graph
+```java
+      JpaEntityGraph jpaEntityGraph = new JpaEntityGraph(
+"birth.sistRecvTm",
+EntityGraph.EntityGraphType.FETCH,
+new String[]{"sistRecvTm","birth","transfer","merger"}
+);
+        return birthRepository.findAll(createSpecBirth(searchData, type.toUpperCase()), BirthRepository.BirthWithoutChild.class,jpaEntityGraph,pageable);
+```
