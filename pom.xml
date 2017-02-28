@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>th.co.geniustree.springdata.jpa</groupId>
@@ -8,13 +9,13 @@
     <packaging>jar</packaging>
 
     <name>specification-projection</name>
-    <description>Support specification with projection</description>
-
+    <description>Support specification with projection for Spring Data JPA</description>
+    <url>https://github.com/pramoth/specification-with-projection</url>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>1.4.1.RELEASE</version>
-        <relativePath /> <!-- lookup parent from repository -->
+        <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
     <properties>
@@ -22,32 +23,37 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <java.version>1.8</java.version>
     </properties>
-
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Pramoth Suwapech</name>
+            <email>pramoth@geniustree.co.th</email>
+            <organization>Genius-Tree Co.,Ltd.</organization>
+            <timezone>+7</timezone>
+            <organizationUrl>http://geniustree.co.th</organizationUrl>
+        </developer>
+    </developers>
     <scm>
         <connection>scm:git:git@github.com:pramoth/specification-with-projection.git</connection>
         <developerConnection>scm:git:git@github.com:pramoth/specification-with-projection.git</developerConnection>
         <url>https://github.com/pramoth/specification-with-projection</url>
-      <tag>HEAD</tag>
-  </scm>
+        <tag>HEAD</tag>
+    </scm>
     <distributionManagement>
         <repository>
-            <id>Geniustree Release</id>
-            <url>http://nexus.geniustree.ath.cx/content/repositories/geniustree/</url>
+            <id>sonar-oss-release</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
         <snapshotRepository>
-            <id>Geniustree Snapshots</id>
-            <url>http://nexus.geniustree.ath.cx/content/repositories/GeniustreeSnapshots/</url>
+            <id>sonar-oss-snapshot</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
-    <developers>
-        <developer>
-            <id>pramoth@geniustree.co.th</id>
-            <name>Pramoth Suwanpech</name>
-            <email>jpramoth@geniustree.co.th</email>
-            <timezone>+7</timezone>
-            <url>https://github.com/pramoth</url>
-        </developer>
-    </developers>
 
     <dependencies>
         <dependency>
@@ -96,6 +102,35 @@
             </plugin>
         </plugins>
     </build>
-
+    <profiles>
+        <profile>
+            <id>release</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>1.6</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <keyname>86C65686</keyname>
+                                    <passphraseServerId>gpg.passphrase</passphraseServerId>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
