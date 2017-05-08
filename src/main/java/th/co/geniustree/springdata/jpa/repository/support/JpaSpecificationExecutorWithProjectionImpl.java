@@ -1,5 +1,14 @@
 package th.co.geniustree.springdata.jpa.repository.support;
 
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.persistence.EntityGraph;
+import javax.persistence.EntityManager;
+import javax.persistence.Query;
+import javax.persistence.TypedQuery;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -12,23 +21,20 @@ import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.data.projection.SpelAwareProxyProjectionFactory;
-import th.co.geniustree.springdata.jpa.repository.JpaSpecificationExecutorWithProjection;
 
-import javax.persistence.EntityGraph;
-import javax.persistence.EntityManager;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
+import th.co.geniustree.springdata.jpa.repository.JpaSpecificationExecutorWithProjection;
 
 /**
  * Created by pramoth on 9/29/2016 AD.
  */
 public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializable> extends SimpleJpaRepository<T, ID> implements JpaSpecificationExecutorWithProjection<T> {
+
     private static final Logger log = LoggerFactory.getLogger(JpaSpecificationExecutorWithProjectionImpl.class);
+
     private final EntityManager entityManager;
+
     private final ProjectionFactory projectionFactory = new SpelAwareProxyProjectionFactory();
+
     private final JpaEntityInformation entityInformation;
 
     public JpaSpecificationExecutorWithProjectionImpl(JpaEntityInformation entityInformation, EntityManager entityManager) {
@@ -36,7 +42,6 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         this.entityManager = entityManager;
         this.entityInformation = entityInformation;
     }
-
 
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, Pageable pageable) {
@@ -66,7 +71,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     private <R> Page<R> readPageWithProjection(Specification<T> spec, Class<R> projectionType, Pageable pageable, TypedQuery<T> query) {
         if (log.isDebugEnabled()) {
-            query.getHints().entrySet().forEach(e -> log.info("apply query hints -> {} : {}", e.getKey(), e.getValue()));
+            query.getHints().forEach((key, value) -> log.info("apply query hints -> {} : {}", key, value));
         }
         Page<T> result = (pageable == null) ? new PageImpl<>(query.getResultList()) : readPage(query, getDomainClass(), pageable, spec);
         return result.map(item -> projectionFactory.createProjection(projectionType, item));
