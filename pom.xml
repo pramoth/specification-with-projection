@@ -5,7 +5,7 @@
 
     <groupId>th.co.geniustree.springdata.jpa</groupId>
     <artifactId>specification-with-projections</artifactId>
-    <version>1.0.5.RELEASE-SNAPSHOT</version>
+    <version>1.0.5-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>specification-projection</name>
@@ -14,7 +14,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>1.4.1.RELEASE</version>
+        <version>1.5.7.RELEASE</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
 
@@ -80,7 +80,6 @@
         <dependency>
             <groupId>org.springframework.data</groupId>
             <artifactId>spring-data-jpa</artifactId>
-            <version>1.10.4.RELEASE</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
