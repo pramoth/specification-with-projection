@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>th.co.geniustree.springdata.jpa</groupId>
     <artifactId>specification-with-projections</artifactId>
-    <version>1.0.5-SNAPSHOT</version>
+    <version>1.0.5</version>
     <packaging>jar</packaging>
 
     <name>specification-projection</name>
@@ -15,7 +14,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>1.5.7.RELEASE</version>
-        <relativePath/> <!-- lookup parent from repository -->
+        <relativePath /> <!-- lookup parent from repository -->
     </parent>
 
     <properties>
@@ -42,7 +41,7 @@
         <connection>scm:git:git@github.com:pramoth/specification-with-projection.git</connection>
         <developerConnection>scm:git:git@github.com:pramoth/specification-with-projection.git</developerConnection>
         <url>https://github.com/pramoth/specification-with-projection</url>
-        <tag>HEAD</tag>
+        <tag>specification-with-projections-1.0.5</tag>
     </scm>
     <dependencies>
         <dependency>
