@@ -44,17 +44,6 @@
         <url>https://github.com/pramoth/specification-with-projection</url>
         <tag>HEAD</tag>
     </scm>
-    <distributionManagement>
-        <repository>
-            <id>sonar-oss-release</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
-        <snapshotRepository>
-            <id>sonar-oss-snapshot</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
