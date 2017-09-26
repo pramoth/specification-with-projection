@@ -2,6 +2,14 @@
 Support Projections with `JpaSpecificationExecutor.findAll(Specification,Pageable)` for Spring Data JPA
 
 ## How to use
+* add dependency to pom
+```xml
+<dependency>
+    <groupId>th.co.geniustree.springdata.jpa</groupId>
+    <artifactId>specification-with-projections</artifactId>
+    <version>1.0.5</version>
+</dependency>
+```
 * add annotation `@EnableJpaRepositories(repositoryBaseClass = JpaSpecificationExecutorWithProjectionImpl.class)` on Application class (Spring Boot)
 * create your repository and extends `JpaSpecificationExecutorWithProjection`
 ```java
