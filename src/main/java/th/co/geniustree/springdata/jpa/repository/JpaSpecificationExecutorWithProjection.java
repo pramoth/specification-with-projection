@@ -15,6 +15,8 @@ import org.springframework.data.repository.NoRepositoryBean;
 @NoRepositoryBean
 public interface JpaSpecificationExecutorWithProjection<T> {
 
+    <R> R findOne(Specification<T> spec, Class<R> projectionClass);
+
     <R> Page<R> findAll(Specification<T> spec, Class<R> projectionClass, Pageable pageable);
 
     <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, String namedEntityGraph, EntityGraph.EntityGraphType type, Pageable pageable);
