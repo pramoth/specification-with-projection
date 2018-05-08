@@ -21,12 +21,19 @@ public class SpecificationExecutorProjectionTests {
     private DocumentRepository documentRepository;
 
     @Test
-    public void specificationWithProjection() {
+    public void findAll() {
         Specifications<Document> where = Specifications.where(DocumentSpecs.idEq(1L));
         Page<DocumentRepository.DocumentWithoutParent> all = documentRepository.findAll(where, DocumentRepository.DocumentWithoutParent.class, null);
         Assertions.assertThat(all).isNotEmpty();
         System.out.println(all.getContent());
         Assertions.assertThat(all.getContent().get(0).getDocumentType()).isEqualTo("ต้นฉบับ");
+    }
+
+    @Test
+    public void findOne() {
+        Specifications<Document> where = Specifications.where(DocumentSpecs.idEq(1L));
+        DocumentRepository.DocumentWithoutParent one = documentRepository.findOne(where, DocumentRepository.DocumentWithoutParent.class);
+        Assertions.assertThat(one.getDocumentType()).isEqualTo("ต้นฉบับ");
     }
 
 
