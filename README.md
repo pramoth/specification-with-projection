@@ -1,6 +1,10 @@
 # specification-with-projection
 Support Projections with `JpaSpecificationExecutor.findAll(Specification,Pageable)` for Spring Data JPA
 
+>version 2.x.x for Spring Data JPA 2.x (Spring Boot 2.x) 
+
+>version 1.x.x Spring Data JPA 1.x 
+
 ## How to use
 * add dependency to pom
 ```xml
