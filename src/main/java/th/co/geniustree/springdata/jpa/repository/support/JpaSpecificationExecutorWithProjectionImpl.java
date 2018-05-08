@@ -4,16 +4,14 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-import javax.persistence.EntityGraph;
-import javax.persistence.EntityManager;
-import javax.persistence.Query;
-import javax.persistence.TypedQuery;
+import javax.persistence.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.query.Jpa21Utils;
 import org.springframework.data.jpa.repository.query.JpaEntityGraph;
@@ -41,6 +39,18 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         super(entityInformation, entityManager);
         this.entityManager = entityManager;
         this.entityInformation = entityInformation;
+    }
+
+
+    @Override
+    public <R> R findOne(Specification<T> spec, Class<R> projectionType) {
+        TypedQuery<T> query = getQuery(spec, (Sort) null);
+        try {
+            T result = query.getSingleResult();
+            return projectionFactory.createProjection(projectionType, result);
+        } catch (NoResultException e) {
+            return null;
+        }
     }
 
     @Override
