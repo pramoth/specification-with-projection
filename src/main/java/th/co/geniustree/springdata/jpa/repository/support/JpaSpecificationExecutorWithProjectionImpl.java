@@ -1,11 +1,5 @@
 package th.co.geniustree.springdata.jpa.repository.support;
 
-import java.io.Serializable;
-import java.util.HashMap;
-import java.util.Map;
-
-import javax.persistence.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -19,8 +13,13 @@ import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.data.projection.SpelAwareProxyProjectionFactory;
-
 import th.co.geniustree.springdata.jpa.repository.JpaSpecificationExecutorWithProjection;
+
+import javax.persistence.*;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Created by pramoth on 9/29/2016 AD.
@@ -43,11 +42,11 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
 
     @Override
-    public <R> R findOne(Specification<T> spec, Class<R> projectionType) {
-        TypedQuery<T> query = getQuery(spec, (Sort) null);
+    public <R> Optional<R> findOne(Specification<T> spec, Class<R> projectionType) {
+        TypedQuery<T> query = getQuery(spec, Sort.unsorted());
         try {
             T result = query.getSingleResult();
-            return projectionFactory.createProjection(projectionType, result);
+            return Optional.ofNullable(projectionFactory.createProjection(projectionType, result));
         } catch (NoResultException e) {
             return null;
         }
@@ -83,7 +82,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         if (log.isDebugEnabled()) {
             query.getHints().forEach((key, value) -> log.info("apply query hints -> {} : {}", key, value));
         }
-        Page<T> result = (pageable == null) ? new PageImpl<>(query.getResultList()) : readPage(query, getDomainClass(), pageable, spec);
+        Page<T> result = pageable.isUnpaged() ? new PageImpl<>(query.getResultList()) : readPage(query, getDomainClass(), pageable, spec);
         return result.map(item -> projectionFactory.createProjection(projectionType, item));
     }
 
