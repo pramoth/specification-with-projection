@@ -8,10 +8,19 @@ Support Projections with `JpaSpecificationExecutor.findAll(Specification,Pageabl
 ## How to use
 * add dependency to pom
 ```xml
+<!-- for Spring Data 2.x -->
 <dependency>
     <groupId>th.co.geniustree.springdata.jpa</groupId>
     <artifactId>specification-with-projections</artifactId>
-    <version>1.0.5</version>
+    <version>2.0.0</version>
+</dependency>
+```
+```xml
+<!-- for Spring Data 1.x -->
+<dependency>
+    <groupId>th.co.geniustree.springdata.jpa</groupId>
+    <artifactId>specification-with-projections</artifactId>
+    <version>1.0.6</version>
 </dependency>
 ```
 * add annotation `@EnableJpaRepositories(repositoryBaseClass = JpaSpecificationExecutorWithProjectionImpl.class)` on Application class (Spring Boot)
