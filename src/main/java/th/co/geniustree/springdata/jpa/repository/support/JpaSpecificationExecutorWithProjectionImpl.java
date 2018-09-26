@@ -48,7 +48,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
             T result = query.getSingleResult();
             return Optional.ofNullable(projectionFactory.createProjection(projectionType, result));
         } catch (NoResultException e) {
-            return null;
+            return Optional.empty();
         }
     }
 
