@@ -1,7 +1,7 @@
 package th.co.geniustree.springdata.jpa.repository;
 
-import th.co.geniustree.springdata.jpa.domain.Document;
 import org.springframework.data.jpa.repository.JpaRepository;
+import th.co.geniustree.springdata.jpa.domain.Document;
 
 import java.util.List;
 
@@ -17,5 +17,12 @@ public interface DocumentRepository extends JpaRepository<Document,Integer>,JpaS
         String getDocumentType();
         String getDocumentCategory();
         List<DocumentWithoutParent> getChild();
+    }
+    public static interface OnlyId{
+        Long getId();
+    }
+
+    public static interface OnlyParent extends OnlyId{
+        OnlyId getParent();
     }
 }
