@@ -1,7 +1,7 @@
 package th.co.geniustree.springdata.jpa.repository;
 
-import th.co.geniustree.springdata.jpa.domain.Document;
 import org.springframework.data.jpa.repository.JpaRepository;
+import th.co.geniustree.springdata.jpa.domain.Document;
 
 import java.util.List;
 

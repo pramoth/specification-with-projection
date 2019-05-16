@@ -1,8 +1,8 @@
 package th.co.geniustree.springdata.jpa.specification;
 
+import org.springframework.data.jpa.domain.Specification;
 import th.co.geniustree.springdata.jpa.domain.Document;
 import th.co.geniustree.springdata.jpa.domain.Document_;
-import org.springframework.data.jpa.domain.Specification;
 
 /**
  * Created by pramoth on 9/29/2016 AD.
