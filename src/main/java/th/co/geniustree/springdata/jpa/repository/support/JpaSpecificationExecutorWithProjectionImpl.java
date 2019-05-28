@@ -74,9 +74,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
         final TypedQuery<Tuple> query = getTupleQuery(spec, Sort.unsorted(), returnedType);
         try {
-            Tuple result = query.getSingleResult();
             final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
-            final R singleResult = resultProcessor.processResult(result, new TupleConverter(returnedType));
+            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
             return Optional.ofNullable(singleResult);
         } catch (NoResultException e) {
             return Optional.empty();
@@ -121,6 +120,9 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
     }
 
     protected TypedQuery<Tuple> getTupleQuery(@Nullable Specification spec, Sort sort, ReturnedType returnedType) {
+        if (!returnedType.needsCustomConstruction()){
+            return getQuery(spec,sort);
+        }
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
         Root<T> root = this.applySpecificationToCriteria(spec, getDomainClass(), query);
@@ -129,7 +131,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         if (predicate != null) {
             query.where(predicate);
         }
-        if (returnedType.isProjecting()) {
+        if (returnedType.needsCustomConstruction()) {
             List<Selection<?>> selections = new ArrayList<>();
 
             for (String property : returnedType.getInputProperties()) {
