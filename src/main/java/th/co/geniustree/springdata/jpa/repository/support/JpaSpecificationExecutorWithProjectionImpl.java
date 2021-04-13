@@ -125,12 +125,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         }
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
-        Root<T> root = this.applySpecificationToCriteria(spec, getDomainClass(), query);
-        Predicate predicate = spec.toPredicate(root, query, builder);
+        Root<T> root = this.applySpecificationToCriteria(spec, getDomainClass(), query, builder);
 
-        if (predicate != null) {
-            query.where(predicate);
-        }
         if (returnedType.needsCustomConstruction()) {
             List<Selection<?>> selections = new ArrayList<>();
 
@@ -152,7 +148,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
 
     private <S, U extends T> Root<U> applySpecificationToCriteria(@Nullable Specification<U> spec, Class<U> domainClass,
-                                                                  CriteriaQuery<S> query) {
+                                                                  CriteriaQuery<S> query, CriteriaBuilder builder) {
 
         Assert.notNull(domainClass, "Domain class must not be null!");
         Assert.notNull(query, "CriteriaQuery must not be null!");
@@ -163,7 +159,6 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
             return root;
         }
 
-        CriteriaBuilder builder = entityManager.getCriteriaBuilder();
         Predicate predicate = spec.toPredicate(root, query, builder);
 
         if (predicate != null) {
