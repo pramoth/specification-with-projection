@@ -85,7 +85,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, Pageable pageable) {
         final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
-        final TypedQuery<Tuple> query = getTupleQuery(spec, pageable.isPaged() ? pageable.getSort() : Sort.unsorted(), returnedType);
+        final TypedQuery<Tuple> query = getTupleQuery(spec, pageable.getSort() != null && pageable.getSort().isSorted() ? pageable.getSort() : Sort.unsorted(), returnedType);
         final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
         if (pageable.isPaged()) {
             query.setFirstResult((int)pageable.getOffset());
