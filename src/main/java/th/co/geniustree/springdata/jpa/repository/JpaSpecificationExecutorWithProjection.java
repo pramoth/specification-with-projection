@@ -1,5 +1,6 @@
 package th.co.geniustree.springdata.jpa.repository;
 
+import java.io.Serializable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -13,8 +14,10 @@ import java.util.Optional;
  * Created by pramoth on 9/29/2016 AD.
  */
 @NoRepositoryBean
-public interface JpaSpecificationExecutorWithProjection<T> {
+public interface JpaSpecificationExecutorWithProjection<T, ID> {
 
+    <R> Optional<R> findById(ID id, Class<R> projectionClass);
+  
     <R> Optional<R> findOne(Specification<T> spec, Class<R> projectionClass);
 
     <R> Page<R> findAll(Specification<T> spec, Class<R> projectionClass, Pageable pageable);

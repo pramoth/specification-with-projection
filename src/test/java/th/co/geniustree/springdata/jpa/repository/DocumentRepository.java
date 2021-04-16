@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * Created by pramoth on 9/28/2016 AD.
  */
-public interface DocumentRepository extends JpaRepository<Document,Integer>,JpaSpecificationExecutorWithProjection<Document> {
+public interface DocumentRepository extends JpaRepository<Document,Long>,JpaSpecificationExecutorWithProjection<Document, Long> {
     public List<DocumentWithoutParent> findByParentIsNull();
 
     public static interface DocumentWithoutParent{

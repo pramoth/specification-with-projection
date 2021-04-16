@@ -42,7 +42,7 @@ import static javax.persistence.metamodel.Attribute.PersistentAttributeType.*;
 /**
  * Created by pramoth on 9/29/2016 AD.
  */
-public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializable> extends SimpleJpaRepository<T, ID> implements JpaSpecificationExecutorWithProjection<T> {
+public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializable> extends SimpleJpaRepository<T, ID> implements JpaSpecificationExecutorWithProjection<T, ID> {
 
     private static final Logger log = LoggerFactory.getLogger(JpaSpecificationExecutorWithProjectionImpl.class);
     private static final Map<Attribute.PersistentAttributeType, Class<? extends Annotation>> ASSOCIATION_TYPES;
@@ -66,6 +66,39 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         super(entityInformation, entityManager);
         this.entityManager = entityManager;
         this.entityInformation = entityInformation;
+    }
+    
+    @Override
+    public <R> Optional<R> findById(ID id, Class<R> projectionType) {
+        final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
+        
+        CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
+        CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
+        Root<T> root = q.from(getDomainClass());
+        q.where(builder.equal(root.get(entityInformation.getIdAttribute()), id));
+
+        if (returnedType.needsCustomConstruction()) {
+            List<Selection<?>> selections = new ArrayList<>();
+
+            for (String property : returnedType.getInputProperties()) {
+                PropertyPath path = PropertyPath.from(property, returnedType.getReturnedType());
+                selections.add(toExpressionRecursively(root, path, true).alias(property));
+            }
+
+            q.multiselect(selections);
+        } else {
+            throw new IllegalArgumentException("only except projection");
+        }
+        
+        final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
+        
+        try {
+            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
+            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
+            return Optional.ofNullable(singleResult);
+        } catch (NoResultException e) {
+            return Optional.empty();
+        }
     }
 
 
