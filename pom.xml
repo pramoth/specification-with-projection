@@ -147,7 +147,7 @@
                                     <goal>sign</goal>
                                 </goals>
                                 <configuration>
-                                    <keyname>914C5F32</keyname>
+                                    <keyname>918DA830</keyname>
                                     <passphraseServerId>gpg.passphrase</passphraseServerId>
                                 </configuration>
                             </execution>
