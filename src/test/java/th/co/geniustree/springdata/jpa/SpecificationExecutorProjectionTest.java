@@ -89,6 +89,13 @@ public class SpecificationExecutorProjectionTest {
         Optional<DocumentRepository.DocumentWithoutParent> one = documentRepository.findOne(where, DocumentRepository.DocumentWithoutParent.class);
         Assertions.assertThat(one.get().getDocumentType()).isEqualTo("ต้นฉบับ");
     }
+    
+    @Test
+    public void findBydId() {
+        Optional<DocumentRepository.DocumentWithoutParent> one = documentRepository.findById(1L, DocumentRepository.DocumentWithoutParent.class);
+        Assertions.assertThat(one.get().getDocumentType()).isEqualTo("ต้นฉบับ");
+    }
+    
     @Test
     public void findOneWithOpenProjection() {
         Specification<Document> where = Specification.where(DocumentSpecs.idEq(1L));
