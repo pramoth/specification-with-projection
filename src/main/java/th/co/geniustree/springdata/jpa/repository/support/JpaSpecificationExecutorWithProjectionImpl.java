@@ -37,6 +37,7 @@ import java.lang.reflect.Member;
 import java.util.*;
 
 import static javax.persistence.metamodel.Attribute.PersistentAttributeType.*;
+import th.co.geniustree.springdata.jpa.annotation.LoadEntityGraph;
 
 
 /**
@@ -91,6 +92,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         }
         
         final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
+        loadEntityGraphs(returnedType, query);
         
         try {
             final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
@@ -154,7 +156,9 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     protected TypedQuery<Tuple> getTupleQuery(@Nullable Specification spec, Sort sort, ReturnedType returnedType) {
         if (!returnedType.needsCustomConstruction()){
-            return getQuery(spec,sort);
+            TypedQuery<Tuple> queryWithoutCustomConstruction = getQuery(spec,sort);
+            loadEntityGraphs(returnedType, queryWithoutCustomConstruction);
+            return queryWithoutCustomConstruction;
         }
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
@@ -176,7 +180,33 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
             query.orderBy(QueryUtils.toOrders(sort, root, builder));
         }
 
-        return this.applyRepositoryMethodMetadata(this.entityManager.createQuery(query));
+        TypedQuery<Tuple> queryWithMetadata = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(query));
+        loadEntityGraphs(returnedType, queryWithMetadata);
+        return queryWithMetadata;
+    }
+    
+    protected void loadEntityGraphs(ReturnedType returnedType, TypedQuery<Tuple> query) {
+        if (returnedType.getReturnedType().isAnnotationPresent(LoadEntityGraph.class)) {
+            LoadEntityGraph load = returnedType.getReturnedType().getAnnotation(LoadEntityGraph.class);
+            String[] paths = load.paths();
+            if (paths.length > 0) {
+                EntityGraph entityGraph = this.entityManager.createEntityGraph(returnedType.getDomainType());
+                Subgraph subgraph = null;
+                for (int i = 0; i < paths.length; i++) {
+                    subgraph = null;
+                    String path = paths[i];
+                    String[] vet = path.split("\\.");
+                    for (String sub : vet) {
+                        if (subgraph == null) {
+                            subgraph = entityGraph.addSubgraph(sub);
+                        } else {
+                            subgraph = subgraph.addSubgraph(sub);
+                        }
+                    }
+                }
+                query.setHint("javax.persistence.fetchgraph", entityGraph);
+            }
+        }
     }
 
 
