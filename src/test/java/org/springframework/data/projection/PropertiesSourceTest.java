@@ -1,10 +1,10 @@
 package org.springframework.data.projection;
 
 import org.assertj.core.api.Assertions;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import th.co.geniustree.springdata.jpa.repository.DocumentRepository;
 
-public class PorpertiesSourceTest {
+public class PropertiesSourceTest {
     @Test
     public void test() {
         DefaultProjectionInformation projectionInformation = new DefaultProjectionInformation(DocumentRepository.DocumentWithoutParent.class);
