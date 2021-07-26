@@ -4,7 +4,7 @@
 
     <groupId>th.co.geniustree.springdata.jpa</groupId>
     <artifactId>specification-with-projections</artifactId>
-    <version>9.0.0-SNAPSHOT</version>
+    <version>3.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>specification-projection</name>
