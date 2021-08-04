@@ -33,7 +33,9 @@ import javax.persistence.metamodel.PluralAttribute;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
+import java.lang.reflect.Field;
 import java.lang.reflect.Member;
+import java.lang.reflect.Method;
 import java.util.*;
 
 import static javax.persistence.metamodel.Attribute.PersistentAttributeType.*;
@@ -71,35 +73,50 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
     
     @Override
     public <R> Optional<R> findById(ID id, Class<R> projectionType) {
-        final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
-        
-        CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
-        CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
-        Root<T> root = q.from(getDomainClass());
-        q.where(builder.equal(root.get(entityInformation.getIdAttribute()), id));
+        boolean hasCollection = false;
+        if(projectionType.isInterface()){
+            Method[] methods = projectionType.getDeclaredMethods();
+            for (Method method : methods) {
+                if (Collection.class.isAssignableFrom(method.getReturnType())) {
+                    hasCollection = true;
+                    break;
+                }
+            }
+        }
+        if(!hasCollection){
+            final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
 
-        if (returnedType.needsCustomConstruction()) {
-            List<Selection<?>> selections = new ArrayList<>();
+            CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
+            CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
+            Root<T> root = q.from(getDomainClass());
+            q.where(builder.equal(root.get(entityInformation.getIdAttribute()), id));
 
-            for (String property : returnedType.getInputProperties()) {
-                PropertyPath path = PropertyPath.from(property, returnedType.getReturnedType());
-                selections.add(toExpressionRecursively(root, path, true).alias(property));
+            if (returnedType.needsCustomConstruction()) {
+                List<Selection<?>> selections = new ArrayList<>();
+
+                for (String property : returnedType.getInputProperties()) {
+                    PropertyPath path = PropertyPath.from(property, returnedType.getReturnedType());
+                    selections.add(toExpressionRecursively(root, path, true).alias(property));
+                }
+
+                q.multiselect(selections);
+            } else {
+                throw new IllegalArgumentException("only except projection");
             }
 
-            q.multiselect(selections);
+            final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
+            loadEntityGraphs(returnedType, query);
+
+            try {
+                final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
+                final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
+                return Optional.ofNullable(singleResult);
+            } catch (NoResultException e) {
+                return Optional.empty();
+            }
         } else {
-            throw new IllegalArgumentException("only except projection");
-        }
-        
-        final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
-        loadEntityGraphs(returnedType, query);
-        
-        try {
-            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
-            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
-            return Optional.ofNullable(singleResult);
-        } catch (NoResultException e) {
-            return Optional.empty();
+            T t = this.entityManager.find(getDomainClass(), id);
+            return Optional.ofNullable(projectionFactory.createProjection(projectionType, t));
         }
     }
 
