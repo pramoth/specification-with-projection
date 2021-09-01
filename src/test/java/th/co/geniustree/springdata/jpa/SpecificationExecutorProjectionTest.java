@@ -16,6 +16,9 @@ import th.co.geniustree.springdata.jpa.repository.DocumentRepository;
 import th.co.geniustree.springdata.jpa.specification.DocumentSpecs;
 
 import java.util.Optional;
+import th.co.geniustree.springdata.jpa.repository.ClassDocumentParent;
+import th.co.geniustree.springdata.jpa.repository.ClassDocumentWithoutParent;
+import th.co.geniustree.springdata.jpa.repository.ClassDocumentWithoutParentList;
 
 @RunWith(SpringRunner.class)
 @SpringBootTest
@@ -65,6 +68,39 @@ public class SpecificationExecutorProjectionTest {
         Assertions.assertThat(all).isNotEmpty();
         Assertions.assertThat(all.getContent().get(0).getParent().getId()).isEqualTo(13L);
     }
+    
+    @Test
+    public void findAll6() {
+        Specification<Document> where = Specification.where(DocumentSpecs.idEq(1L));
+        Page<ClassDocumentWithoutParent> all = documentRepository.findAll(where, ClassDocumentWithoutParent.class, PageRequest.of(0,10));
+        Assertions.assertThat(all).isNotEmpty();
+        Assertions.assertThat(all.getContent().get(0).getId()).isEqualTo(1L);
+    }
+    
+    @Test
+    public void findAll7() {
+        Specification<Document> where = Specification.where(DocumentSpecs.idEq(1L));
+        Page<ClassDocumentWithoutParentList> all = documentRepository.findAll(where, ClassDocumentWithoutParentList.class, PageRequest.of(0,10));
+        Assertions.assertThat(all).isNotEmpty();
+        Assertions.assertThat(all.getContent().get(0).getChild().size()).isEqualTo(1);
+    }
+    
+    @Test
+    public void findAll8() {
+        Specification<Document> where = Specification.where(DocumentSpecs.idEq(24L));
+        Page<ClassDocumentWithoutParentList> all = documentRepository.findAll(where, ClassDocumentWithoutParentList.class, PageRequest.of(0,10));
+        Assertions.assertThat(all).isNotEmpty();
+        Assertions.assertThat(all.getContent().get(0).getChild()).isEmpty();
+    }
+    
+    @Test
+    public void findAll_with_parent() {
+        Specification<Document> where = Specification.where(DocumentSpecs.idEq(24L));
+        Page<ClassDocumentParent> all = documentRepository.findAll(where, ClassDocumentParent.class, PageRequest.of(0,10));
+        Assertions.assertThat(all).isNotEmpty();
+        Assertions.assertThat(all.getContent().get(0).getParent().getId()).isEqualTo(13);
+    }
+    
     @Test
     public void find_single_page() {
         Specification<Document> where = Specification.where(DocumentSpecs.idEq(24L));

@@ -9,6 +9,7 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.CollectionFactory;
@@ -188,10 +189,10 @@ public class MyResultProcessor {
             Object[] properties = new Object[constructor.getConstructor().getParameterCount()];
             int idx = 0;
             Object id = null;
-            Field fId = Arrays.stream(targetType.getDeclaredFields()).filter(f -> f.getAnnotation(Id.class) != null).findFirst().get();
+            Optional<Field> fId = Arrays.stream(targetType.getDeclaredFields()).filter(f -> f.getAnnotation(Id.class) != null).findFirst();
             for (PreferredConstructor.Parameter<Object, ?> parameter : constructor.getParameters()) {
                 properties[idx] = src.get(parameter.getName().replaceAll("_", "."));
-                if (parameter.getName().equals(fId.getName())) {
+                if (fId.isPresent() && parameter.getName().equals(fId.get().getName())) {
                     id = properties[idx];
                 }
                 if (properties[idx] != null && properties[idx].getClass().equals(GregorianCalendar.class)) {
@@ -203,29 +204,33 @@ public class MyResultProcessor {
                 Object ret = constructor.getConstructor().newInstance(properties);
                 CustomDefaultProjectionInformation information = (CustomDefaultProjectionInformation) factory.getProjectionInformation(targetType);
                 for (Field field : information.getLoaders()) {
-                    ParameterizedType stringListType = (ParameterizedType) field.getGenericType();
-                    Class<?> projection = (Class<?>) stringListType.getActualTypeArguments()[0];
-                    CriteriaBuilder builder = entityManager.getCriteriaBuilder();
-                    CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
-                    Root root = query.from(type.getDomainType());
-                    query.where(builder.equal(root.get(fId.getName()), id));
-                    String[] vet = field.getAnnotation(Load.class).value().split("\\.");
-                    From join = root;
-                    for (int i = 0; i < vet.length; i++) {
-                        join = join.join(vet[i], JoinType.INNER);
+                    if(fId.isPresent()){
+                        ParameterizedType stringListType = (ParameterizedType) field.getGenericType();
+                        Class<?> projection = (Class<?>) stringListType.getActualTypeArguments()[0];
+                        CriteriaBuilder builder = entityManager.getCriteriaBuilder();
+                        CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
+                        Root root = query.from(type.getDomainType());
+                        query.where(builder.equal(root.get(fId.get().getName()), id));
+                        String[] vet = field.getAnnotation(Load.class).value().split("\\.");
+                        From join = root;
+                        for (int i = 0; i < vet.length; i++) {
+                            join = join.join(vet[i], JoinType.INNER);
+                        }
+
+                        ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projection, type.getDomainType(), factory);
+                        List props = factory.getProjectionInformation(projection).getInputProperties();
+
+                        JpaSpecificationExecutorWithProjectionImpl.configQuery(builder, query, join, returnedType, props, returnedType.getReturnedType());
+
+                        TypedQuery<Tuple> queryWithMetadata = this.entityManager.createQuery(query);
+                        final MyResultProcessor resultProcessor = new MyResultProcessor(factory, returnedType, entityManager);
+                        List l = queryWithMetadata.getResultList();
+                        final List resultList = resultProcessor.processResult(l, new TupleConverter(returnedType, props));
+
+                        BeanUtils.getPropertyDescriptor(targetType, field.getName()).getWriteMethod().invoke(ret, resultList);
+                    } else {
+                        throw new RuntimeException("Configure the @Id field!");
                     }
-
-                    ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projection, type.getDomainType(), factory);
-                    List props = factory.getProjectionInformation(projection).getInputProperties();
-
-                    JpaSpecificationExecutorWithProjectionImpl.configQuery(builder, query, join, returnedType, props, returnedType.getReturnedType());
-
-                    TypedQuery<Tuple> queryWithMetadata = this.entityManager.createQuery(query);
-                    final MyResultProcessor resultProcessor = new MyResultProcessor(factory, returnedType, entityManager);
-                    List l = queryWithMetadata.getResultList();
-                    final List resultList = resultProcessor.processResult(l, new TupleConverter(returnedType, props));
-
-                    BeanUtils.getPropertyDescriptor(targetType, field.getName()).getWriteMethod().invoke(ret, resultList);
                 }
                 return ret;
             } catch (Exception ex) {
