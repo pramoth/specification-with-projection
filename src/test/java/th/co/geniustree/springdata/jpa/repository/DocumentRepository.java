@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import th.co.geniustree.springdata.jpa.domain.Document;
 
 import java.util.List;
+import th.co.geniustree.springdata.jpa.annotation.FieldProperty;
 
 /**
  * Created by pramoth on 9/28/2016 AD.
@@ -28,6 +29,7 @@ public interface DocumentRepository extends JpaRepository<Document,Long>,JpaSpec
     }
 
     public static interface OpenProjection extends OnlyId{
+        @FieldProperty(path = "description")
         @Value("#{target.description}")
         String getDescriptionString();
     }

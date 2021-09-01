@@ -1,5 +1,14 @@
 package org.springframework.data.repository.query;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.CollectionFactory;
@@ -11,15 +20,33 @@ import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
-import java.util.*;
+
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.persistence.EntityManager;
+import javax.persistence.Id;
+import javax.persistence.Tuple;
+import javax.persistence.TypedQuery;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.From;
+import javax.persistence.criteria.JoinType;
+import javax.persistence.criteria.Root;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.mapping.PreferredConstructor;
+import org.springframework.data.mapping.model.PreferredConstructorDiscoverer;
+import th.co.geniustree.springdata.jpa.annotation.Load;
+import th.co.geniustree.springdata.jpa.repository.support.CustomSpelAwareProxyProjectionFactory.CustomDefaultProjectionInformation;
+import th.co.geniustree.springdata.jpa.repository.support.JpaSpecificationExecutorWithProjectionImpl;
 
 public class MyResultProcessor {
+
     private final ProjectingConverter converter;
     private final ProjectionFactory factory;
-    private final ReturnedType type;
+    private final ReturnTypeWarpper type;
 
-    public MyResultProcessor(ProjectionFactory factory, ReturnedType type) {
-        this.converter = new ProjectingConverter(type,factory).withType(type);
+    public MyResultProcessor(ProjectionFactory factory, ReturnTypeWarpper type, EntityManager entityManager) {
+        this.converter = new ProjectingConverter(type, factory, entityManager).withType(type);
         this.factory = factory;
         this.type = type;
     }
@@ -34,11 +61,11 @@ public class MyResultProcessor {
 
         ChainingConverter converter = ChainingConverter.of(type.getReturnedType(), preparingConverter).and(this.converter);
 
-        if (source instanceof Slice ) {
+        if (source instanceof Slice) {
             return (T) ((Slice<?>) source).map(converter::convert);
         }
 
-        if (source instanceof Collection ) {
+        if (source instanceof Collection) {
 
             Collection<?> collection = (Collection<?>) source;
             Collection<Object> target = createCollectionFor(collection);
@@ -51,16 +78,18 @@ public class MyResultProcessor {
         }
         return (T) converter.convert(source);
     }
+
     @RequiredArgsConstructor(staticName = "of")
     private static class ChainingConverter implements Converter<Object, Object> {
 
         private final @NonNull
         Class<?> targetType;
-        private final @NonNull Converter<Object, Object> delegate;
+        private final @NonNull
+        Converter<Object, Object> delegate;
 
         /**
-         * Returns a new {@link ChainingConverter} that hands the elements resulting from the current conversion to the
-         * given {@link Converter}.
+         * Returns a new {@link ChainingConverter} that hands the elements
+         * resulting from the current conversion to the given {@link Converter}.
          *
          * @param converter must not be {@literal null}.
          * @return
@@ -88,6 +117,7 @@ public class MyResultProcessor {
             return delegate.convert(source);
         }
     }
+
     private static Collection<Object> createCollectionFor(Collection<?> source) {
 
         try {
@@ -97,35 +127,41 @@ public class MyResultProcessor {
         }
     }
 
-
     @RequiredArgsConstructor
     private static class ProjectingConverter implements Converter<Object, Object> {
 
-        private final @NonNull ReturnedType type;
-        private final @NonNull ProjectionFactory factory;
-        private final @NonNull ConversionService conversionService;
+        private final @NonNull
+        ReturnTypeWarpper type;
+        private final @NonNull
+        ProjectionFactory factory;
+        private final @NonNull
+        ConversionService conversionService;
+        private final @NonNull
+        EntityManager entityManager;
 
         /**
-         * Creates a new {@link ProjectingConverter} for the given {@link ReturnedType} and {@link ProjectionFactory}.
+         * Creates a new {@link ProjectingConverter} for the given
+         * {@link ReturnedType} and {@link ProjectionFactory}.
          *
          * @param type must not be {@literal null}.
          * @param factory must not be {@literal null}.
          */
-        ProjectingConverter(ReturnedType type, ProjectionFactory factory) {
-            this(type, factory, DefaultConversionService.getSharedInstance());
+        ProjectingConverter(ReturnTypeWarpper type, ProjectionFactory factory, EntityManager entityManager) {
+            this(type, factory, DefaultConversionService.getSharedInstance(), entityManager);
         }
 
         /**
-         * Creates a new {@link ProjectingConverter} for the given {@link ReturnedType}.
+         * Creates a new {@link ProjectingConverter} for the given
+         * {@link ReturnedType}.
          *
          * @param type must not be {@literal null}.
          * @return
          */
-        ProjectingConverter withType(ReturnedType type) {
+        ProjectingConverter withType(ReturnTypeWarpper type) {
 
             Assert.notNull(type, "ReturnedType must not be null!");
 
-            return new ProjectingConverter(type, factory, conversionService);
+            return new ProjectingConverter(type, factory, conversionService, entityManager);
         }
 
         /*
@@ -142,7 +178,60 @@ public class MyResultProcessor {
                 return factory.createProjection(targetType, getProjectionTarget(source));
             }
 
-            return conversionService.convert(source, targetType);
+            PreferredConstructor<?, ?> constructor = PreferredConstructorDiscoverer.discover(targetType);
+
+            if (constructor == null) {
+                return Collections.emptyList();
+            }
+
+            Map<String, Object> src = (Map<String, Object>) source;
+            Object[] properties = new Object[constructor.getConstructor().getParameterCount()];
+            int idx = 0;
+            Object id = null;
+            Field fId = Arrays.stream(targetType.getDeclaredFields()).filter(f -> f.getAnnotation(Id.class) != null).findFirst().get();
+            for (PreferredConstructor.Parameter<Object, ?> parameter : constructor.getParameters()) {
+                properties[idx] = src.get(parameter.getName().replaceAll("_", "."));
+                if (parameter.getName().equals(fId.getName())) {
+                    id = properties[idx];
+                }
+                if (properties[idx] != null && properties[idx].getClass().equals(GregorianCalendar.class)) {
+                    properties[idx] = ((GregorianCalendar) properties[idx]).getTime();
+                }
+                idx++;
+            }
+            try {
+                Object ret = constructor.getConstructor().newInstance(properties);
+                CustomDefaultProjectionInformation information = (CustomDefaultProjectionInformation) factory.getProjectionInformation(targetType);
+                for (Field field : information.getLoaders()) {
+                    ParameterizedType stringListType = (ParameterizedType) field.getGenericType();
+                    Class<?> projection = (Class<?>) stringListType.getActualTypeArguments()[0];
+                    CriteriaBuilder builder = entityManager.getCriteriaBuilder();
+                    CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
+                    Root root = query.from(type.getDomainType());
+                    query.where(builder.equal(root.get(fId.getName()), id));
+                    String[] vet = field.getAnnotation(Load.class).value().split("\\.");
+                    From join = root;
+                    for (int i = 0; i < vet.length; i++) {
+                        join = join.join(vet[i], JoinType.INNER);
+                    }
+
+                    ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projection, type.getDomainType(), factory);
+                    List props = factory.getProjectionInformation(projection).getInputProperties();
+
+                    JpaSpecificationExecutorWithProjectionImpl.configQuery(builder, query, join, returnedType, props, returnedType.getReturnedType());
+
+                    TypedQuery<Tuple> queryWithMetadata = this.entityManager.createQuery(query);
+                    final MyResultProcessor resultProcessor = new MyResultProcessor(factory, returnedType, entityManager);
+                    List l = queryWithMetadata.getResultList();
+                    final List resultList = resultProcessor.processResult(l, new TupleConverter(returnedType, props));
+
+                    BeanUtils.getPropertyDescriptor(targetType, field.getName()).getWriteMethod().invoke(ret, resultList);
+                }
+                return ret;
+            } catch (Exception ex) {
+                Logger.getLogger(MyResultProcessor.class.getName()).log(Level.SEVERE, null, ex);
+                return null;
+            }
         }
 
         private Object getProjectionTarget(Object source) {

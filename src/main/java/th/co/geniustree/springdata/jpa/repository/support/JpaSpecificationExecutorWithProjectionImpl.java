@@ -1,5 +1,6 @@
 package th.co.geniustree.springdata.jpa.repository.support;
 
+import java.beans.PropertyDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -14,7 +15,6 @@ import org.springframework.data.jpa.repository.support.JpaEntityInformation;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.data.mapping.PropertyPath;
 import org.springframework.data.projection.ProjectionFactory;
-import org.springframework.data.projection.SpelAwareProxyProjectionFactory;
 import org.springframework.data.repository.query.MyResultProcessor;
 import org.springframework.data.repository.query.ReturnTypeWarpper;
 import org.springframework.data.repository.query.ReturnedType;
@@ -33,14 +33,14 @@ import javax.persistence.metamodel.PluralAttribute;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
-import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static javax.persistence.metamodel.Attribute.PersistentAttributeType.*;
-import th.co.geniustree.springdata.jpa.annotation.LoadEntityGraph;
-
+import th.co.geniustree.springdata.jpa.annotation.FieldProperty;
 
 /**
  * Created by pramoth on 9/29/2016 AD.
@@ -49,7 +49,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     private static final Logger log = LoggerFactory.getLogger(JpaSpecificationExecutorWithProjectionImpl.class);
     private static final Map<Attribute.PersistentAttributeType, Class<? extends Annotation>> ASSOCIATION_TYPES;
-    static{
+
+    static {
         Map<Attribute.PersistentAttributeType, Class<? extends Annotation>> persistentAttributeTypes = new HashMap<Attribute.PersistentAttributeType, Class<? extends Annotation>>();
         persistentAttributeTypes.put(ONE_TO_ONE, OneToOne.class);
         persistentAttributeTypes.put(ONE_TO_MANY, null);
@@ -61,7 +62,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
     }
     private final EntityManager entityManager;
 
-    private final ProjectionFactory projectionFactory = new SpelAwareProxyProjectionFactory();
+    private final ProjectionFactory projectionFactory = new CustomSpelAwareProxyProjectionFactory();
 
     private final JpaEntityInformation entityInformation;
 
@@ -70,64 +71,61 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         this.entityManager = entityManager;
         this.entityInformation = entityInformation;
     }
-    
+
     @Override
     public <R> Optional<R> findById(ID id, Class<R> projectionType) {
-        boolean hasCollection = false;
-        if(projectionType.isInterface()){
-            Method[] methods = projectionType.getDeclaredMethods();
-            for (Method method : methods) {
-                if (Collection.class.isAssignableFrom(method.getReturnType())) {
-                    hasCollection = true;
-                    break;
+        try {
+            boolean hasCollection = false;
+            if (projectionType.isInterface()) {
+                Method[] methods = projectionType.getDeclaredMethods();
+                for (Method method : methods) {
+                    if (Collection.class.isAssignableFrom(method.getReturnType())) {
+                        hasCollection = true;
+                        break;
+                    }
                 }
             }
-        }
-        if(!hasCollection){
-            final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
+            if (!hasCollection) {
+                final ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
 
-            CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
-            CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
-            Root<T> root = q.from(getDomainClass());
-            q.where(builder.equal(root.get(entityInformation.getIdAttribute()), id));
+                CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
+                CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
+                Root<T> root = q.from(getDomainClass());
+                q.where(builder.equal(root.get(entityInformation.getIdAttribute()), id));
 
-            if (returnedType.needsCustomConstruction()) {
-                List<Selection<?>> selections = new ArrayList<>();
-
-                for (String property : returnedType.getInputProperties()) {
-                    PropertyPath path = PropertyPath.from(property, returnedType.getReturnedType());
-                    selections.add(toExpressionRecursively(root, path, true).alias(property));
+                List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(projectionType).getInputProperties();
+                if (returnedType.needsCustomConstruction()) {
+                    configQuery(builder, q, root, returnedType, props, returnedType.getDomainType());
+                } else {
+                    throw new IllegalArgumentException("only except projection");
                 }
 
-                q.multiselect(selections);
+                final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
+
+                try {
+                    final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType, entityManager);
+                    final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType, props));
+                    return Optional.ofNullable(singleResult);
+                } catch (NoResultException e) {
+                    return Optional.empty();
+                }
             } else {
-                throw new IllegalArgumentException("only except projection");
+                T t = this.entityManager.find(getDomainClass(), id);
+                return Optional.ofNullable(projectionFactory.createProjection(projectionType, t));
             }
-
-            final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
-            loadEntityGraphs(returnedType, query);
-
-            try {
-                final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
-                final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
-                return Optional.ofNullable(singleResult);
-            } catch (NoResultException e) {
-                return Optional.empty();
-            }
-        } else {
-            T t = this.entityManager.find(getDomainClass(), id);
-            return Optional.ofNullable(projectionFactory.createProjection(projectionType, t));
+        } catch (NoResultException e) {
+            return Optional.empty();
         }
     }
 
-
     @Override
     public <R> Optional<R> findOne(Specification<T> spec, Class<R> projectionType) {
-        final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
+        final ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
         final TypedQuery<Tuple> query = getTupleQuery(spec, Sort.unsorted(), returnedType);
         try {
-            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
-            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
+            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType, entityManager);
+            List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(projectionType).getInputProperties();
+            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType, props));
             return Optional.ofNullable(singleResult);
         } catch (NoResultException e) {
             return Optional.empty();
@@ -136,14 +134,15 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, Pageable pageable) {
-        final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
+        final ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
         final TypedQuery<Tuple> query = getTupleQuery(spec, pageable.getSort() != null && pageable.getSort().isSorted() ? pageable.getSort() : Sort.unsorted(), returnedType);
-        final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
+        final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType, entityManager);
         if (pageable.isPaged()) {
-            query.setFirstResult((int)pageable.getOffset());
+            query.setFirstResult((int) pageable.getOffset());
             query.setMaxResults(pageable.getPageSize());
         }
-        final List<R> resultList = resultProcessor.processResult(query.getResultList(), new TupleConverter(returnedType));
+        List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(projectionType).getInputProperties();
+        final List<R> resultList = resultProcessor.processResult(query.getResultList(), new TupleConverter(returnedType, props));
         final Page<R> page = PageableExecutionUtils.getPage(resultList, pageable, () -> executeCountQuery(this.getCountQuery(spec, getDomainClass())));
         return pageable.isUnpaged() ? new PageImpl(resultList) : page;
     }
@@ -154,8 +153,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         Long total = 0L;
 
         Long element;
-        for(Iterator var3 = totals.iterator(); var3.hasNext(); total = total + (element == null ? 0L : element)) {
-            element = (Long)var3.next();
+        for (Iterator var3 = totals.iterator(); var3.hasNext(); total = total + (element == null ? 0L : element)) {
+            element = (Long) var3.next();
         }
 
         return total;
@@ -163,72 +162,74 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, String namedEntityGraph, org.springframework.data.jpa.repository.EntityGraph.EntityGraphType type, Pageable pageable) {
-        return findAll(spec,projectionType,pageable);
+        return findAll(spec, projectionType, pageable);
     }
 
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, JpaEntityGraph dynamicEntityGraph, Pageable pageable) {
-        return findAll(spec,projectionType,pageable);
+        return findAll(spec, projectionType, pageable);
     }
 
-    protected TypedQuery<Tuple> getTupleQuery(@Nullable Specification spec, Sort sort, ReturnedType returnedType) {
-        if (!returnedType.needsCustomConstruction()){
-            TypedQuery<Tuple> queryWithoutCustomConstruction = getQuery(spec,sort);
-            loadEntityGraphs(returnedType, queryWithoutCustomConstruction);
-            return queryWithoutCustomConstruction;
+    protected TypedQuery<Tuple> getTupleQuery(@Nullable Specification spec, Sort sort, ReturnTypeWarpper returnedType) {
+        if (!returnedType.needsCustomConstruction()) {
+            return getQuery(spec, sort);
         }
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
-        Root<T> root = this.applySpecificationToCriteria(spec, getDomainClass(), query, builder);
 
+        Root<T> root = query.from(getDomainClass());
+
+        List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(returnedType.getReturnedType()).getInputProperties();
         if (returnedType.needsCustomConstruction()) {
-            List<Selection<?>> selections = new ArrayList<>();
-
-            for (String property : returnedType.getInputProperties()) {
-                PropertyPath path = PropertyPath.from(property, returnedType.getReturnedType());
-                selections.add(toExpressionRecursively(root, path, true).alias(property));
-            }
-
-            query.multiselect(selections);
+            configQuery(builder, query, root, returnedType, props, returnedType.getDomainType());
         } else {
             throw new IllegalArgumentException("only except projection");
         }
+
+        if (spec != null) {
+            Predicate predicate = spec.toPredicate(root, query, builder);
+
+            if (predicate != null) {
+                query.where(predicate);
+            }
+        }
+
         if (sort.isSorted()) {
             query.orderBy(QueryUtils.toOrders(sort, root, builder));
         }
 
-        TypedQuery<Tuple> queryWithMetadata = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(query));
-        loadEntityGraphs(returnedType, queryWithMetadata);
-        return queryWithMetadata;
-    }
-    
-    protected void loadEntityGraphs(ReturnedType returnedType, TypedQuery<Tuple> query) {
-        if (returnedType.getReturnedType().isAnnotationPresent(LoadEntityGraph.class)) {
-            LoadEntityGraph load = returnedType.getReturnedType().getAnnotation(LoadEntityGraph.class);
-            String[] paths = load.paths();
-            if (paths.length > 0) {
-                EntityGraph entityGraph = this.entityManager.createEntityGraph(returnedType.getDomainType());
-                Subgraph subgraph = null;
-                for (int i = 0; i < paths.length; i++) {
-                    subgraph = null;
-                    String path = paths[i];
-                    String[] vet = path.split("\\.");
-                    for (String sub : vet) {
-                        if (subgraph == null) {
-                            subgraph = entityGraph.addSubgraph(sub);
-                        } else {
-                            subgraph = subgraph.addSubgraph(sub);
-                        }
-                    }
-                }
-                query.setHint("javax.persistence.fetchgraph", entityGraph);
-            }
-        }
+        return this.applyRepositoryMethodMetadata(this.entityManager.createQuery(query));
     }
 
+    public static void configQuery(CriteriaBuilder builder, CriteriaQuery<Tuple> query, From root, ReturnTypeWarpper returnedType, List<PropertyDescriptor> props, Class from) {
+        Map<String, PropertyDescriptor> mapProps = null;
+        boolean isInterface = returnedType.getReturnedType().isInterface();
+
+        if (isInterface) {
+            mapProps = props.stream().collect(Collectors.toMap(PropertyDescriptor::getName, Function.identity()));
+        }
+
+        List<Selection<?>> selections = new ArrayList<>();
+        for (String property : returnedType.getInputProperties()) {
+            if (isInterface) {
+                FieldProperty field = null;
+                PropertyDescriptor prop = mapProps.get(property);
+                field = prop.getReadMethod().getAnnotation(FieldProperty.class);
+                if (field != null) {
+                    property = field.path();
+                }
+            }
+
+            PropertyPath path = PropertyPath.from(property, from);
+            Expression exp = (Expression) toExpressionRecursively(root, path, true).alias(property);
+            selections.add(exp);
+        }
+
+        query.multiselect(selections);
+    }
 
     private <S, U extends T> Root<U> applySpecificationToCriteria(@Nullable Specification<U> spec, Class<U> domainClass,
-                                                                  CriteriaQuery<S> query, CriteriaBuilder builder) {
+            CriteriaQuery<S> query, CriteriaBuilder builder) {
 
         Assert.notNull(domainClass, "Domain class must not be null!");
         Assert.notNull(query, "CriteriaQuery must not be null!");
@@ -260,16 +261,16 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
         return toReturn;
     }
+
     private void applyQueryHints(Query query) {
         QueryHints queryHints = DefaultQueryHints.of(this.entityInformation, getRepositoryMethodMetadata());
-        if(queryHints==null){
+        if (queryHints == null) {
             queryHints = QueryHints.NoHints.INSTANCE;
         }
         for (Map.Entry<String, Object> hint : queryHints.withFetchGraphs(this.entityManager)) {
             query.setHint(hint.getKey(), hint.getValue());
         }
     }
-
 
     static Expression<Object> toExpressionRecursively(Path<Object> path, PropertyPath property) {
 
@@ -306,7 +307,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
     }
 
     private static boolean requiresJoin(@Nullable Bindable<?> propertyPathModel, boolean isPluralAttribute,
-                                        boolean isLeafProperty, boolean isForSelection) {
+            boolean isLeafProperty, boolean isForSelection) {
 
         if (propertyPathModel == null && isPluralAttribute) {
             return true;
@@ -356,8 +357,11 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
             }
         }
 
-        return from.join(attribute, JoinType.LEFT);
+        Join<?, ?> ret = from.join(attribute, JoinType.LEFT);
+        ret.alias(attribute);
+        return ret;
     }
+
     private static boolean isAlreadyFetched(From<?, ?> from, String attribute) {
 
         for (Fetch<?, ?> fetch : from.getFetches()) {
