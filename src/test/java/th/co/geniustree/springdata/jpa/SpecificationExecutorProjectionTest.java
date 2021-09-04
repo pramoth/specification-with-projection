@@ -58,7 +58,7 @@ public class SpecificationExecutorProjectionTest {
         Specification<Document> where = Specification.where(DocumentSpecs.idEq(24L));
         Page<DocumentRepository.DocumentWithoutParent> all = documentRepository.findAll(where, DocumentRepository.DocumentWithoutParent.class, PageRequest.of(0,10));
         Assertions.assertThat(all).isNotEmpty();
-        Assertions.assertThat(all.getContent().get(0).getChild()).isNull();
+        Assertions.assertThat(all.getContent().get(0).getChild()).isEmpty();
     }
 
     @Test

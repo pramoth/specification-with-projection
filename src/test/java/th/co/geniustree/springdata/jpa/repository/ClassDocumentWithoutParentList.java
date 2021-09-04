@@ -24,10 +24,4 @@ public class ClassDocumentWithoutParentList {
         String getDocumentCategory();
     }
 
-    public ClassDocumentWithoutParentList(Long id, String description, String documentType, String documentCategory) {
-        this.id = id;
-        this.description = description;
-        this.documentType = documentType;
-        this.documentCategory = documentCategory;
-    }
 }

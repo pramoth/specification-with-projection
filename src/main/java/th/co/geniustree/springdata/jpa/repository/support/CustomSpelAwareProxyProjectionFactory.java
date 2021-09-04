@@ -1,5 +1,6 @@
 package th.co.geniustree.springdata.jpa.repository.support;
 
+import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -90,6 +91,11 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
          */
         @Override
         public boolean isClosed() {
+            for (PropertyDescriptor inputProperty : getInputProperties()) {
+                if (inputProperty.getName().contains(".")) {
+                    return true;
+                }
+            }
             return this.properties.equals(getInputProperties());
         }
 
@@ -111,6 +117,10 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
 
             if (AnnotationUtils.findAnnotation(readMethod, FieldProperty.class) != null) {
                 return true;
+            }
+
+            if (Collection.class.isAssignableFrom(descriptor.getPropertyType())) {
+                return false;
             }
 
             return AnnotationUtils.findAnnotation(readMethod, Value.class) == null;
@@ -185,16 +195,25 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
         }
 
         private void searchProperties(List<PropertyDescriptor> properties, Class<?> t, String base) {
+            List<String> fields = null;
+            if (!t.isInterface()) {
+                fields = Arrays.stream(t.getDeclaredFields()).map(m -> m.getName()).collect(Collectors.toList());
+            }
             PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(t);
             for (PropertyDescriptor prop : props) {
-                if (!prop.getName().equals("class")) {
+                if (!prop.getName().equals("class") && (fields == null || (fields.contains(prop.getName())))) {
                     if (prop.getPropertyType().getCanonicalName().startsWith(type.getCanonicalName() + ".")) {
                         searchProperties(properties, prop.getPropertyType(), (base != "" ? base + "." + prop.getName() : prop.getName()));
                     } else {
-                        if (base != "" && !prop.getName().startsWith(base)) {
-                            prop.setName(base != "" ? base + "." + prop.getName() : prop.getName());
+                        try {
+                            PropertyDescriptor newP = new PropertyDescriptor(prop.getName(), prop.getReadMethod(), prop.getWriteMethod());
+                            if (base != "" && !prop.getName().startsWith(base)) {
+                                newP.setName(base != "" ? base + "." + newP.getName() : newP.getName());
+                            }
+                            properties.add(newP);
+                        } catch (IntrospectionException ex) {
+                            Logger.getLogger(CustomPropertyDescriptorSource.class.getName()).log(Level.SEVERE, "Not find property", ex);
                         }
-                        properties.add(prop);
                     }
                 }
             }
@@ -203,7 +222,7 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
         private void searchLoads(List<Field> lista, Class<?> t, String base) {
             Field[] props = t.getDeclaredFields();
             for (Field prop : props) {
-                if (prop.getType().getCanonicalName().startsWith(type.getCanonicalName() + ".")) {
+                if (prop.getType().getCanonicalName().startsWith(type.getCanonicalName() + ".") && !prop.getName().startsWith("this$")) {
                     searchLoads(lista, prop.getType(), (base != "" ? base + "." + prop.getName() : prop.getName()));
                 } else {
                     Load load = prop.getAnnotation(Load.class);

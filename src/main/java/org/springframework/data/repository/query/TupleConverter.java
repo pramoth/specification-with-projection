@@ -8,7 +8,8 @@ import org.springframework.util.Assert;
 import javax.persistence.Tuple;
 import javax.persistence.TupleElement;
 import java.util.*;
-import java.util.function.Function;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -18,6 +19,7 @@ public class TupleConverter implements Converter<Object, Object> {
 
     private final ReturnTypeWarpper type;
     private final List<PropertyDescriptor> props;
+    private final Map<String, PropertyDescriptor> mapped = new HashMap<>();
 
     /**
      * Creates a new {@link TupleConverter} for the given {@link ReturnedType}.
@@ -30,6 +32,21 @@ public class TupleConverter implements Converter<Object, Object> {
 
         this.type = type;
         this.props = props;
+        boolean isInterface = type.getReturnedType().isInterface();
+        props.stream().forEach(p -> {
+            FieldProperty fp = p.getReadMethod().getAnnotation(FieldProperty.class);
+            if (!isInterface) {
+                try {
+                    fp = AnnotationUtils.findAnnotation(type.getReturnedType().getDeclaredField(p.getName()), FieldProperty.class);
+                } catch (Exception ex) {
+                }
+            }
+            if (fp != null && (!isInterface || p.getReadMethod().getAnnotation(Value.class) != null)) {
+                mapped.put(fp.path(), p);
+            } else {
+                mapped.put(p.getName(), p);
+            }
+        });
     }
 
     /*
@@ -55,7 +72,7 @@ public class TupleConverter implements Converter<Object, Object> {
             }
         }
 
-        return new TupleConverter.TupleBackedMap(tuple, type, props);
+        return new TupleConverter.TupleBackedMap(tuple, type, props, mapped);
     }
 
     /**
@@ -73,23 +90,15 @@ public class TupleConverter implements Converter<Object, Object> {
         private final Tuple tuple;
         private final ReturnTypeWarpper type;
         private final List<PropertyDescriptor> props;
-        private final Map<String, PropertyDescriptor> mapped = new HashMap<>();
+        private final Map<String, PropertyDescriptor> mapped;
         private final boolean isInterface;
 
-        TupleBackedMap(Tuple tuple, ReturnTypeWarpper type, List<PropertyDescriptor> props) {
+        TupleBackedMap(Tuple tuple, ReturnTypeWarpper type, List<PropertyDescriptor> props, Map<String, PropertyDescriptor> mapped) {
             this.tuple = tuple;
             this.type = type;
             this.props = props;
             isInterface = type.getReturnedType().isInterface();
-            props.stream().forEach(p -> {
-                FieldProperty fp = p.getReadMethod().getAnnotation(FieldProperty.class);
-                if (fp != null && p.getReadMethod().getAnnotation(Value.class) != null) {
-                    mapped.put(fp.path(), p);
-                } else {
-                    mapped.put(p.getName(), p);
-                }
-            });
-//            mapped = props.stream().collect(Collectors.toMap(PropertyDescriptor::getName, Function.identity()));
+            this.mapped = mapped;
         }
 
         @Override
@@ -138,19 +147,38 @@ public class TupleConverter implements Converter<Object, Object> {
             }
 
             try {
+                String sKey = (String) key;
                 if (!containsKey(key)) {
-                    if (type.getInputProperties().stream().anyMatch(p -> p.startsWith(key + ".") || p.endsWith("." + key) || p.contains("." + key + "."))) {
-                        return this;
+                    TuppleHashMap nHash = new TuppleHashMap();
+                    keySet().stream().forEach(k -> {
+                        if (k.startsWith(key + ".")) {
+                            String nKey = k.replaceFirst(key + ".", "");
+                            nHash.put(nKey, tuple.get(k));
+                        }
+                    });
+
+                    if (nHash.size() > 0) {
+                        return nHash;
+                    }
+                    Optional<String> hKey = type.getInputProperties().stream().filter(p -> p.endsWith("." + key)).findFirst();
+                    if (hKey.isPresent()) {
+                        sKey = hKey.get();
                     }
                 }
 
-                PropertyDescriptor prop = mapped.get(key);
-                String sKey = (String) key;
+                PropertyDescriptor prop = mapped.get(sKey);
+                FieldProperty fp = null;
                 if (isInterface) {
-                    FieldProperty fp = AnnotationUtils.findAnnotation(prop.getReadMethod(), FieldProperty.class);
-                    if (fp != null) {
-                        sKey = fp.path();
+                    fp = AnnotationUtils.findAnnotation(prop.getReadMethod(), FieldProperty.class);
+                } else {
+                    try {
+                        fp = AnnotationUtils.findAnnotation(type.getReturnedType().getDeclaredField(prop.getName()), FieldProperty.class);
+                    } catch (Exception ex) {
+                        Logger.getLogger(TupleConverter.class.getName()).log(Level.WARNING, "Field not fount!");
                     }
+                }
+                if (fp != null) {
+                    sKey = fp.path();
                 }
 
                 Object obj = tuple.get(sKey);
@@ -212,5 +240,40 @@ public class TupleConverter implements Converter<Object, Object> {
                     .map(e -> new HashMap.SimpleEntry<String, Object>(e.getAlias(), tuple.get(e))) //
                     .collect(Collectors.toSet());
         }
+    }
+
+    private static class TuppleHashMap extends HashMap<String, Object> {
+
+        @Override
+        public boolean containsKey(Object key) {
+            return super.containsKey(key); //To change body of generated methods, choose Tools | Templates.
+        }
+
+        @Override
+        public Object get(Object key) {
+
+            if (!(key instanceof String)) {
+                return null;
+            }
+
+            boolean isPresent = containsKey(key);
+
+            if (!isPresent) {
+                TuppleHashMap ret = new TuppleHashMap();
+                keySet().stream().forEach(k -> {
+                    if (k.startsWith(key + ".")) {
+                        String nKey = k.replaceFirst(key + ".", "");
+                        ret.put(nKey, super.get(k));
+                    }
+                });
+                if (ret.size() > 0) {
+                    return ret;
+                }
+                return null;
+            }
+
+            return super.get(key); //To change body of generated methods, choose Tools | Templates.
+        }
+
     }
 }

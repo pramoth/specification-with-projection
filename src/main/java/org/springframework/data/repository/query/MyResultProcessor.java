@@ -1,5 +1,6 @@
 package org.springframework.data.repository.query;
 
+import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.util.Arrays;
@@ -21,7 +22,6 @@ import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
-
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.persistence.EntityManager;
@@ -34,8 +34,10 @@ import javax.persistence.criteria.From;
 import javax.persistence.criteria.JoinType;
 import javax.persistence.criteria.Root;
 import org.springframework.beans.BeanUtils;
+import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.data.mapping.PreferredConstructor;
 import org.springframework.data.mapping.model.PreferredConstructorDiscoverer;
+import th.co.geniustree.springdata.jpa.annotation.FieldProperty;
 import th.co.geniustree.springdata.jpa.annotation.Load;
 import th.co.geniustree.springdata.jpa.repository.support.CustomSpelAwareProxyProjectionFactory.CustomDefaultProjectionInformation;
 import th.co.geniustree.springdata.jpa.repository.support.JpaSpecificationExecutorWithProjectionImpl;
@@ -139,6 +141,7 @@ public class MyResultProcessor {
         ConversionService conversionService;
         private final @NonNull
         EntityManager entityManager;
+        private final Map<String, PropertyDescriptor> mapped;
 
         /**
          * Creates a new {@link ProjectingConverter} for the given
@@ -148,7 +151,7 @@ public class MyResultProcessor {
          * @param factory must not be {@literal null}.
          */
         ProjectingConverter(ReturnTypeWarpper type, ProjectionFactory factory, EntityManager entityManager) {
-            this(type, factory, DefaultConversionService.getSharedInstance(), entityManager);
+            this(type, factory, DefaultConversionService.getSharedInstance(), entityManager, null);
         }
 
         /**
@@ -161,8 +164,45 @@ public class MyResultProcessor {
         ProjectingConverter withType(ReturnTypeWarpper type) {
 
             Assert.notNull(type, "ReturnedType must not be null!");
+            CustomDefaultProjectionInformation information = (CustomDefaultProjectionInformation) factory.getProjectionInformation(type.getReturnedType());
+            List<PropertyDescriptor> properties = information.getInputProperties();
+            Map<String, PropertyDescriptor> mapped = new HashMap<>();
+            properties.stream().forEach(p -> {
+                FieldProperty fp = null;
+                try {
+                    fp = AnnotationUtils.findAnnotation(type.getReturnedType().getDeclaredField(p.getName()), FieldProperty.class);
+                } catch (Exception ex) {
+                }
+                if (fp != null) {
+                    mapped.put(fp.path(), p);
+                } else {
+                    mapped.put(p.getName(), p);
+                }
+            });
 
-            return new ProjectingConverter(type, factory, conversionService, entityManager);
+            return new ProjectingConverter(type, factory, conversionService, entityManager, mapped);
+        }
+
+        private Object getInstance(Object obj, String propertyName) {
+            if (propertyName.contains(".")) {
+                String[] fields = propertyName.split("\\.");
+                Object ret = obj;
+                for (int i = 0; i < fields.length - 1; i++) {
+                    PropertyDescriptor property = BeanUtils.getPropertyDescriptor(ret.getClass(), fields[i]);
+                    try {
+                        Object aux = property.getReadMethod().invoke(ret);
+                        if (aux == null) {
+                            aux = property.getPropertyType().getConstructor(ret.getClass()).newInstance(ret);
+                            property.getWriteMethod().invoke(ret, aux);
+                        }
+                        ret = aux;
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+                return ret;
+            }
+            return obj;
         }
 
         /*
@@ -186,25 +226,24 @@ public class MyResultProcessor {
             }
 
             Map<String, Object> src = (Map<String, Object>) source;
-            Object[] properties = new Object[constructor.getConstructor().getParameterCount()];
-            int idx = 0;
             Object id = null;
             Optional<Field> fId = Arrays.stream(targetType.getDeclaredFields()).filter(f -> f.getAnnotation(Id.class) != null).findFirst();
-            for (PreferredConstructor.Parameter<Object, ?> parameter : constructor.getParameters()) {
-                properties[idx] = src.get(parameter.getName().replaceAll("_", "."));
-                if (fId.isPresent() && parameter.getName().equals(fId.get().getName())) {
-                    id = properties[idx];
-                }
-                if (properties[idx] != null && properties[idx].getClass().equals(GregorianCalendar.class)) {
-                    properties[idx] = ((GregorianCalendar) properties[idx]).getTime();
-                }
-                idx++;
+            if (fId.isPresent()) {
+                id = src.get(fId.get().getName());
             }
+
             try {
-                Object ret = constructor.getConstructor().newInstance(properties);
+                Object ret = constructor.getConstructor().newInstance();
                 CustomDefaultProjectionInformation information = (CustomDefaultProjectionInformation) factory.getProjectionInformation(targetType);
+
+                for (String key : src.keySet()) {
+                    PropertyDescriptor prop = mapped.get(key);
+                    Object instance = getInstance(ret, prop.getName());
+                    prop.getWriteMethod().invoke(instance, src.get(key));
+                }
+
                 for (Field field : information.getLoaders()) {
-                    if(fId.isPresent()){
+                    if (fId.isPresent()) {
                         ParameterizedType stringListType = (ParameterizedType) field.getGenericType();
                         Class<?> projection = (Class<?>) stringListType.getActualTypeArguments()[0];
                         CriteriaBuilder builder = entityManager.getCriteriaBuilder();
