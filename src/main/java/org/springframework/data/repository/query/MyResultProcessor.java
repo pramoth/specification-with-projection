@@ -6,7 +6,6 @@ import java.lang.reflect.ParameterizedType;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,10 +33,8 @@ import javax.persistence.criteria.From;
 import javax.persistence.criteria.JoinType;
 import javax.persistence.criteria.Root;
 import org.springframework.beans.BeanUtils;
-import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.data.mapping.PreferredConstructor;
 import org.springframework.data.mapping.model.PreferredConstructorDiscoverer;
-import th.co.geniustree.springdata.jpa.annotation.FieldProperty;
 import th.co.geniustree.springdata.jpa.annotation.Load;
 import th.co.geniustree.springdata.jpa.repository.support.CustomSpelAwareProxyProjectionFactory.CustomDefaultProjectionInformation;
 import th.co.geniustree.springdata.jpa.repository.support.JpaSpecificationExecutorWithProjectionImpl;
@@ -45,12 +42,10 @@ import th.co.geniustree.springdata.jpa.repository.support.JpaSpecificationExecut
 public class MyResultProcessor {
 
     private final ProjectingConverter converter;
-    private final ProjectionFactory factory;
     private final ReturnTypeWarpper type;
 
     public MyResultProcessor(ProjectionFactory factory, ReturnTypeWarpper type, EntityManager entityManager) {
         this.converter = new ProjectingConverter(type, factory, entityManager).withType(type);
-        this.factory = factory;
         this.type = type;
     }
 
@@ -141,7 +136,6 @@ public class MyResultProcessor {
         ConversionService conversionService;
         private final @NonNull
         EntityManager entityManager;
-        private final Map<String, PropertyDescriptor> mapped;
 
         /**
          * Creates a new {@link ProjectingConverter} for the given
@@ -151,7 +145,7 @@ public class MyResultProcessor {
          * @param factory must not be {@literal null}.
          */
         ProjectingConverter(ReturnTypeWarpper type, ProjectionFactory factory, EntityManager entityManager) {
-            this(type, factory, DefaultConversionService.getSharedInstance(), entityManager, null);
+            this(type, factory, DefaultConversionService.getSharedInstance(), entityManager);
         }
 
         /**
@@ -164,26 +158,12 @@ public class MyResultProcessor {
         ProjectingConverter withType(ReturnTypeWarpper type) {
 
             Assert.notNull(type, "ReturnedType must not be null!");
-            CustomDefaultProjectionInformation information = (CustomDefaultProjectionInformation) factory.getProjectionInformation(type.getReturnedType());
-            List<PropertyDescriptor> properties = information.getInputProperties();
-            Map<String, PropertyDescriptor> mapped = new HashMap<>();
-            properties.stream().forEach(p -> {
-                FieldProperty fp = null;
-                try {
-                    fp = AnnotationUtils.findAnnotation(type.getReturnedType().getDeclaredField(p.getName()), FieldProperty.class);
-                } catch (Exception ex) {
-                }
-                if (fp != null) {
-                    mapped.put(fp.path(), p);
-                } else {
-                    mapped.put(p.getName(), p);
-                }
-            });
-
-            return new ProjectingConverter(type, factory, conversionService, entityManager, mapped);
+            return new ProjectingConverter(type, factory, conversionService, entityManager);
         }
 
         private Object getInstance(Object obj, String propertyName) {
+            Map<String, Object> instances = new HashMap<>();
+            instances.put(obj.getClass().getName(), obj);
             if (propertyName.contains(".")) {
                 String[] fields = propertyName.split("\\.");
                 Object ret = obj;
@@ -192,7 +172,9 @@ public class MyResultProcessor {
                     try {
                         Object aux = property.getReadMethod().invoke(ret);
                         if (aux == null) {
-                            aux = property.getPropertyType().getConstructor(ret.getClass()).newInstance(ret);
+                            Object parameter = instances.get(property.getPropertyType().getConstructors()[0].getParameters()[0].getType().getName());
+                            aux = property.getPropertyType().getConstructor(parameter.getClass()).newInstance(parameter);
+                            instances.put(aux.getClass().getName(), aux);
                             property.getWriteMethod().invoke(ret, aux);
                         }
                         ret = aux;
@@ -235,7 +217,7 @@ public class MyResultProcessor {
             try {
                 Object ret = constructor.getConstructor().newInstance();
                 CustomDefaultProjectionInformation information = (CustomDefaultProjectionInformation) factory.getProjectionInformation(targetType);
-
+                Map<String, PropertyDescriptor> mapped = type.getMappedProperties();
                 for (String key : src.keySet()) {
                     PropertyDescriptor prop = mapped.get(key);
                     Object instance = getInstance(ret, prop.getName());
@@ -257,14 +239,13 @@ public class MyResultProcessor {
                         }
 
                         ReturnTypeWarpper returnedType = ReturnTypeWarpper.of(projection, type.getDomainType(), factory);
-                        List props = factory.getProjectionInformation(projection).getInputProperties();
 
-                        JpaSpecificationExecutorWithProjectionImpl.configQuery(builder, query, join, returnedType, props, returnedType.getReturnedType());
+                        JpaSpecificationExecutorWithProjectionImpl.configQuery(builder, query, join, returnedType, returnedType.getReturnedType());
 
                         TypedQuery<Tuple> queryWithMetadata = this.entityManager.createQuery(query);
                         final MyResultProcessor resultProcessor = new MyResultProcessor(factory, returnedType, entityManager);
                         List l = queryWithMetadata.getResultList();
-                        final List resultList = resultProcessor.processResult(l, new TupleConverter(returnedType, props));
+                        final List resultList = resultProcessor.processResult(l, new TupleConverter(returnedType));
 
                         BeanUtils.getPropertyDescriptor(targetType, field.getName()).getWriteMethod().invoke(ret, resultList);
                     } else {

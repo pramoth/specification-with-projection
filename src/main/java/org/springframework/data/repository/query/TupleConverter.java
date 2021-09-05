@@ -11,42 +11,23 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.AnnotationUtils;
 import th.co.geniustree.springdata.jpa.annotation.FieldProperty;
 
 public class TupleConverter implements Converter<Object, Object> {
 
     private final ReturnTypeWarpper type;
-    private final List<PropertyDescriptor> props;
-    private final Map<String, PropertyDescriptor> mapped = new HashMap<>();
 
     /**
      * Creates a new {@link TupleConverter} for the given {@link ReturnedType}.
      *
      * @param type must not be {@literal null}.
      */
-    public TupleConverter(ReturnTypeWarpper type, List<PropertyDescriptor> props) {
+    public TupleConverter(ReturnTypeWarpper type) {
 
         Assert.notNull(type, "Returned type must not be null!");
 
         this.type = type;
-        this.props = props;
-        boolean isInterface = type.getReturnedType().isInterface();
-        props.stream().forEach(p -> {
-            FieldProperty fp = p.getReadMethod().getAnnotation(FieldProperty.class);
-            if (!isInterface) {
-                try {
-                    fp = AnnotationUtils.findAnnotation(type.getReturnedType().getDeclaredField(p.getName()), FieldProperty.class);
-                } catch (Exception ex) {
-                }
-            }
-            if (fp != null && (!isInterface || p.getReadMethod().getAnnotation(Value.class) != null)) {
-                mapped.put(fp.path(), p);
-            } else {
-                mapped.put(p.getName(), p);
-            }
-        });
     }
 
     /*
@@ -72,7 +53,7 @@ public class TupleConverter implements Converter<Object, Object> {
             }
         }
 
-        return new TupleConverter.TupleBackedMap(tuple, type, props, mapped);
+        return new TupleConverter.TupleBackedMap(tuple, type);
     }
 
     /**
@@ -93,12 +74,12 @@ public class TupleConverter implements Converter<Object, Object> {
         private final Map<String, PropertyDescriptor> mapped;
         private final boolean isInterface;
 
-        TupleBackedMap(Tuple tuple, ReturnTypeWarpper type, List<PropertyDescriptor> props, Map<String, PropertyDescriptor> mapped) {
+        TupleBackedMap(Tuple tuple, ReturnTypeWarpper type) {
             this.tuple = tuple;
             this.type = type;
-            this.props = props;
+            this.props = type.getInputPropertiesDescritors();
             isInterface = type.getReturnedType().isInterface();
-            this.mapped = mapped;
+            this.mapped = type.getMappedProperties();
         }
 
         @Override
@@ -174,7 +155,7 @@ public class TupleConverter implements Converter<Object, Object> {
                     try {
                         fp = AnnotationUtils.findAnnotation(type.getReturnedType().getDeclaredField(prop.getName()), FieldProperty.class);
                     } catch (Exception ex) {
-                        Logger.getLogger(TupleConverter.class.getName()).log(Level.WARNING, "Field not fount!");
+                        Logger.getLogger(TupleConverter.class.getName()).log(Level.WARNING, "Field not found!");
                     }
                 }
                 if (fp != null) {

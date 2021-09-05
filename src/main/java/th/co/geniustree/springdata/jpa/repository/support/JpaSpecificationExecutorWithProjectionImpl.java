@@ -93,9 +93,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
                 Root<T> root = q.from(getDomainClass());
                 q.where(builder.equal(root.get(entityInformation.getIdAttribute()), id));
 
-                List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(projectionType).getInputProperties();
                 if (returnedType.needsCustomConstruction()) {
-                    configQuery(builder, q, root, returnedType, props, returnedType.getDomainType());
+                    configQuery(builder, q, root, returnedType, returnedType.getDomainType());
                 } else {
                     throw new IllegalArgumentException("only except projection");
                 }
@@ -104,7 +103,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
                 try {
                     final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType, entityManager);
-                    final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType, props));
+                    final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
                     return Optional.ofNullable(singleResult);
                 } catch (NoResultException e) {
                     return Optional.empty();
@@ -124,8 +123,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         final TypedQuery<Tuple> query = getTupleQuery(spec, Sort.unsorted(), returnedType);
         try {
             final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType, entityManager);
-            List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(projectionType).getInputProperties();
-            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType, props));
+            final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
             return Optional.ofNullable(singleResult);
         } catch (NoResultException e) {
             return Optional.empty();
@@ -141,8 +139,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
             query.setFirstResult((int) pageable.getOffset());
             query.setMaxResults(pageable.getPageSize());
         }
-        List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(projectionType).getInputProperties();
-        final List<R> resultList = resultProcessor.processResult(query.getResultList(), new TupleConverter(returnedType, props));
+        final List<R> resultList = resultProcessor.processResult(query.getResultList(), new TupleConverter(returnedType));
         final Page<R> page = PageableExecutionUtils.getPage(resultList, pageable, () -> executeCountQuery(this.getCountQuery(spec, getDomainClass())));
         return pageable.isUnpaged() ? new PageImpl(resultList) : page;
     }
@@ -179,9 +176,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
         Root<T> root = query.from(getDomainClass());
 
-        List<PropertyDescriptor> props = projectionFactory.getProjectionInformation(returnedType.getReturnedType()).getInputProperties();
         if (returnedType.needsCustomConstruction()) {
-            configQuery(builder, query, root, returnedType, props, returnedType.getDomainType());
+            configQuery(builder, query, root, returnedType, returnedType.getDomainType());
         } else {
             throw new IllegalArgumentException("only except projection");
         }
@@ -201,12 +197,12 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         return this.applyRepositoryMethodMetadata(this.entityManager.createQuery(query));
     }
 
-    public static void configQuery(CriteriaBuilder builder, CriteriaQuery<Tuple> query, From root, ReturnTypeWarpper returnedType, List<PropertyDescriptor> props, Class from) {
+    public static void configQuery(CriteriaBuilder builder, CriteriaQuery<Tuple> query, From root, ReturnTypeWarpper returnedType, Class from) {
         Map<String, PropertyDescriptor> mapProps = null;
         boolean isInterface = returnedType.getReturnedType().isInterface();
 
         if (isInterface) {
-            mapProps = props.stream().collect(Collectors.toMap(PropertyDescriptor::getName, Function.identity()));
+            mapProps = returnedType.getInputPropertiesDescritors().stream().collect(Collectors.toMap(PropertyDescriptor::getName, Function.identity()));
         }
 
         List<Selection<?>> selections = new ArrayList<>();

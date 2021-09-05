@@ -3,7 +3,7 @@ package org.springframework.data.repository.query;
 import java.beans.PropertyDescriptor;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,8 +16,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import org.springframework.core.annotation.AnnotationUtils;
 
-import org.springframework.data.mapping.PreferredConstructor;
-import org.springframework.data.mapping.model.PreferredConstructorDiscoverer;
 import org.springframework.data.projection.ProjectionFactory;
 import org.springframework.data.projection.ProjectionInformation;
 import org.springframework.lang.Nullable;
@@ -30,6 +28,9 @@ import th.co.geniustree.springdata.jpa.annotation.FieldProperty;
 public abstract class ReturnTypeWarpper {
 
     private static final Map<ReturnTypeWarpper.CacheKey, ReturnTypeWarpper> CACHE = new ConcurrentReferenceHashMap<>(32);
+    
+    private final @NonNull ProjectionInformation information;
+    private final @NonNull Class<?> returnedType;
 
     private final @NonNull
     Class<?> domainType;
@@ -42,7 +43,7 @@ public abstract class ReturnTypeWarpper {
         return CACHE.computeIfAbsent(ReturnTypeWarpper.CacheKey.of(returnedType, domainType, factory.hashCode()), key -> {
 
             return returnedType.isInterface()
-                    ? new ReturnTypeWarpper.ReturnedInterface(factory.getProjectionInformation(returnedType), domainType)
+                    ? new ReturnTypeWarpper.ReturnedInterface(factory.getProjectionInformation(returnedType), returnedType, domainType)
                     : new ReturnTypeWarpper.ReturnedClass(factory.getProjectionInformation(returnedType),returnedType, domainType);
         });
 //    return ReturnedType.of(returnedType, domainType, factory);
@@ -105,6 +106,30 @@ public abstract class ReturnTypeWarpper {
      * @return
      */
     public abstract List<String> getInputProperties();
+    
+    public List<PropertyDescriptor> getInputPropertiesDescritors(){
+        return information.getInputProperties();
+    }
+    
+    public Map<String, PropertyDescriptor> getMappedProperties(){
+        Map<String, PropertyDescriptor> mapped = new HashMap<>();
+        boolean isInterface = returnedType.isInterface();
+        information.getInputProperties().stream().forEach(p -> {
+            FieldProperty fp = p.getReadMethod().getAnnotation(FieldProperty.class);
+            if (!isInterface) {
+                try {
+                    fp = AnnotationUtils.findAnnotation(returnedType.getDeclaredField(p.getName()), FieldProperty.class);
+                } catch (Exception ex) {
+                }
+            }
+            if (fp != null && (!isInterface || p.getReadMethod().getAnnotation(org.springframework.beans.factory.annotation.Value.class) != null)) {
+                mapped.put(fp.path(), p);
+            } else {
+                mapped.put(p.getName(), p);
+            }
+        });
+        return mapped;
+    }
 
     /**
      * A {@link ReturnedType} that's backed by an interface.
@@ -124,9 +149,8 @@ public abstract class ReturnTypeWarpper {
          * @param information must not be {@literal null}.
          * @param domainType must not be {@literal null}.
          */
-        public ReturnedInterface(ProjectionInformation information, Class<?> domainType) {
-
-            super(domainType);
+        public ReturnedInterface(ProjectionInformation information, Class<?> returnedType, Class<?> domainType) {
+            super(information,returnedType,domainType);
 
             Assert.notNull(information, "Projection information must not be null!");
 
@@ -210,7 +234,7 @@ public abstract class ReturnTypeWarpper {
          * @param domainType must not be {@literal null}.
          */
         public ReturnedClass(ProjectionInformation information, Class<?> returnedType, Class<?> domainType) {
-            super(domainType);
+            super(information,returnedType,domainType);
 
             Assert.notNull(returnedType, "Returned type must not be null!");
             Assert.notNull(domainType, "Domain type must not be null!");
@@ -274,27 +298,6 @@ public abstract class ReturnTypeWarpper {
         @Override
         public List<String> getInputProperties() {
             return inputProperties;
-        }
-
-        private List<String> detectConstructorParameterNames(Class<?> type) {
-
-            if (!isDto()) {
-                return Collections.emptyList();
-            }
-
-            PreferredConstructor<?, ?> constructor = PreferredConstructorDiscoverer.discover(type);
-
-            if (constructor == null) {
-                return Collections.emptyList();
-            }
-
-            List<String> properties = new ArrayList<>(constructor.getConstructor().getParameterCount());
-
-            for (PreferredConstructor.Parameter<Object, ?> parameter : constructor.getParameters()) {
-                properties.add(parameter.getName().replaceAll("_", "."));
-            }
-
-            return properties;
         }
 
         private boolean isDto() {
