@@ -202,7 +202,7 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
             PropertyDescriptor[] props = BeanUtils.getPropertyDescriptors(t);
             for (PropertyDescriptor prop : props) {
                 if (!prop.getName().equals("class") && (fields == null || (fields.contains(prop.getName())))) {
-                    if (prop.getPropertyType().getCanonicalName().startsWith(type.getCanonicalName() + ".")) {
+                    if (isDto(prop.getPropertyType())) {
                         searchProperties(properties, prop.getPropertyType(), (base != "" ? base + "." + prop.getName() : prop.getName()));
                     } else {
                         try {
@@ -222,7 +222,7 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
         private void searchLoads(List<Field> lista, Class<?> t, String base) {
             Field[] props = t.getDeclaredFields();
             for (Field prop : props) {
-                if (prop.getType().getCanonicalName().startsWith(type.getCanonicalName() + ".") && !prop.getName().startsWith("this$")) {
+                if (isDto(prop.getType()) && !prop.getName().startsWith("this$")) {
                     searchLoads(lista, prop.getType(), (base != "" ? base + "." + prop.getName() : prop.getName()));
                 } else {
                     Load load = prop.getAnnotation(Load.class);
@@ -231,6 +231,17 @@ public class CustomSpelAwareProxyProjectionFactory extends SpelAwareProxyProject
                     }
                 }
             }
+        }
+
+        private boolean isDto(Class<?> type) {
+
+            return !Object.class.equals(type)
+                    && !type.isEnum()
+                    && !ClassUtils.isPrimitiveOrWrapper(type)
+                    && !Number.class.isAssignableFrom(type)
+                    && !Void.class.equals(type)
+                    && !void.class.equals(type)
+                    && !type.getPackage().getName().startsWith("java.");
         }
 
         /**
