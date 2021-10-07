@@ -217,7 +217,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
             }
 
             PropertyPath path = PropertyPath.from(property, from);
-            Expression exp = (Expression) toExpressionRecursively(root, path, true).alias(property);
+            Expression exp = (Expression) toExpressionRecursively(root, root, path, true).alias(property);
             selections.add(exp);
         }
 
@@ -274,7 +274,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         return property.hasNext() ? toExpressionRecursively(result, property.next()) : result;
     }
 
-    static <T> Expression<T> toExpressionRecursively(From<?, ?> from, PropertyPath property, boolean isForSelection) {
+    static <T> Expression<T> toExpressionRecursively(From<?, ?> root, From<?, ?> from, PropertyPath property, boolean isForSelection) {
 
         Bindable<?> propertyPathModel;
         Bindable<?> model = from.getModel();
@@ -293,8 +293,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
         if (requiresJoin(propertyPathModel, model instanceof PluralAttribute, !property.hasNext(), isForSelection)
                 && !isAlreadyFetched(from, segment)) {
-            Join<?, ?> join = getOrCreateJoin(from, segment);
-            return (Expression<T>) (property.hasNext() ? toExpressionRecursively(join, property.next(), isForSelection)
+            Join<?, ?> join = getOrCreateJoin(root, from, segment);
+            return (Expression<T>) (property.hasNext() ? toExpressionRecursively(root, join, property.next(), isForSelection)
                     : join);
         } else {
             Path<Object> path = from.get(segment);
@@ -342,7 +342,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         return annotation == null ? true : (boolean) AnnotationUtils.getValue(annotation, "optional");
     }
 
-    private static Join<?, ?> getOrCreateJoin(From<?, ?> from, String attribute) {
+    private static Join<?, ?> getOrCreateJoin(From<?, ?> root, From<?, ?> from, String attribute) {
 
         for (Join<?, ?> join : from.getJoins()) {
 
@@ -354,8 +354,21 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         }
 
         Join<?, ?> ret = from.join(attribute, JoinType.LEFT);
-        ret.alias(attribute);
+        if(!hasAlias(root, attribute)){        
+          ret.alias(attribute);
+        }
+        
         return ret;
+    }
+    
+    private static boolean hasAlias(From<?, ?> from, String alias){
+      for (Join<?, ?> join : from.getJoins()) {
+        if(alias.equals(join.getAlias())){
+          return true;
+        }
+        return hasAlias(join, alias);
+      }
+      return false;
     }
 
     private static boolean isAlreadyFetched(From<?, ?> from, String attribute) {
