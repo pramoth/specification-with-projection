@@ -24,8 +24,25 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import th.co.geniustree.springdata.jpa.repository.JpaSpecificationExecutorWithProjection;
 
-import javax.persistence.*;
-import javax.persistence.criteria.*;
+import javax.persistence.EntityManager;
+import javax.persistence.LockModeType;
+import javax.persistence.ManyToOne;
+import javax.persistence.NoResultException;
+import javax.persistence.OneToOne;
+import javax.persistence.Query;
+import javax.persistence.Tuple;
+import javax.persistence.TypedQuery;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Expression;
+import javax.persistence.criteria.Fetch;
+import javax.persistence.criteria.From;
+import javax.persistence.criteria.Join;
+import javax.persistence.criteria.JoinType;
+import javax.persistence.criteria.Path;
+import javax.persistence.criteria.Predicate;
+import javax.persistence.criteria.Root;
+import javax.persistence.criteria.Selection;
 import javax.persistence.metamodel.Attribute;
 import javax.persistence.metamodel.Bindable;
 import javax.persistence.metamodel.ManagedType;
@@ -34,9 +51,19 @@ import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Member;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
-import static javax.persistence.metamodel.Attribute.PersistentAttributeType.*;
+import static javax.persistence.metamodel.Attribute.PersistentAttributeType.ELEMENT_COLLECTION;
+import static javax.persistence.metamodel.Attribute.PersistentAttributeType.MANY_TO_MANY;
+import static javax.persistence.metamodel.Attribute.PersistentAttributeType.MANY_TO_ONE;
+import static javax.persistence.metamodel.Attribute.PersistentAttributeType.ONE_TO_MANY;
+import static javax.persistence.metamodel.Attribute.PersistentAttributeType.ONE_TO_ONE;
 
 
 /**
@@ -46,7 +73,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     private static final Logger log = LoggerFactory.getLogger(JpaSpecificationExecutorWithProjectionImpl.class);
     private static final Map<Attribute.PersistentAttributeType, Class<? extends Annotation>> ASSOCIATION_TYPES;
-    static{
+
+    static {
         Map<Attribute.PersistentAttributeType, Class<? extends Annotation>> persistentAttributeTypes = new HashMap<Attribute.PersistentAttributeType, Class<? extends Annotation>>();
         persistentAttributeTypes.put(ONE_TO_ONE, OneToOne.class);
         persistentAttributeTypes.put(ONE_TO_MANY, null);
@@ -56,6 +84,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
         ASSOCIATION_TYPES = Collections.unmodifiableMap(persistentAttributeTypes);
     }
+
     private final EntityManager entityManager;
 
     private final ProjectionFactory projectionFactory = new SpelAwareProxyProjectionFactory();
@@ -67,11 +96,11 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         this.entityManager = entityManager;
         this.entityInformation = entityInformation;
     }
-    
+
     @Override
     public <R> Optional<R> findById(ID id, Class<R> projectionType) {
         final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
-        
+
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
         Root<T> root = q.from(getDomainClass());
@@ -89,11 +118,11 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         } else {
             throw new IllegalArgumentException("only except projection");
         }
-        
+
         final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
-        
+
         try {
-            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
+            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType);
             final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
             return Optional.ofNullable(singleResult);
         } catch (NoResultException e) {
@@ -107,7 +136,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
         final TypedQuery<Tuple> query = getTupleQuery(spec, Sort.unsorted(), returnedType);
         try {
-            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
+            final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType);
             final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
             return Optional.ofNullable(singleResult);
         } catch (NoResultException e) {
@@ -116,12 +145,27 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
     }
 
     @Override
+    public <R> List<R> findAll(Specification<T> spec, Class<R> projectionType) {
+        return findAll(spec, projectionType, Sort.unsorted());
+    }
+
+    @Override
+    public <R> List<R> findAll(Specification<T> spec, Class<R> projectionType, Sort sort) {
+        return findAll(spec, projectionType, Pageable.unpaged(), sort).getContent();
+    }
+
+    @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, Pageable pageable) {
+        Sort sort = pageable.getSort() != null && pageable.getSort().isSorted() ? pageable.getSort() : Sort.unsorted();
+        return findAll(spec, projectionType, pageable, sort);
+    }
+
+    private <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, Pageable pageable, Sort sort) {
         final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
-        final TypedQuery<Tuple> query = getTupleQuery(spec, pageable.getSort() != null && pageable.getSort().isSorted() ? pageable.getSort() : Sort.unsorted(), returnedType);
-        final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
+        final TypedQuery<Tuple> query = getTupleQuery(spec, sort, returnedType);
+        final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory, returnedType);
         if (pageable.isPaged()) {
-            query.setFirstResult((int)pageable.getOffset());
+            query.setFirstResult((int) pageable.getOffset());
             query.setMaxResults(pageable.getPageSize());
         }
         final List<R> resultList = resultProcessor.processResult(query.getResultList(), new TupleConverter(returnedType));
@@ -135,8 +179,8 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         Long total = 0L;
 
         Long element;
-        for(Iterator var3 = totals.iterator(); var3.hasNext(); total = total + (element == null ? 0L : element)) {
-            element = (Long)var3.next();
+        for (Iterator var3 = totals.iterator(); var3.hasNext(); total = total + (element == null ? 0L : element)) {
+            element = (Long) var3.next();
         }
 
         return total;
@@ -144,17 +188,17 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, String namedEntityGraph, org.springframework.data.jpa.repository.EntityGraph.EntityGraphType type, Pageable pageable) {
-        return findAll(spec,projectionType,pageable);
+        return findAll(spec, projectionType, pageable);
     }
 
     @Override
     public <R> Page<R> findAll(Specification<T> spec, Class<R> projectionType, JpaEntityGraph dynamicEntityGraph, Pageable pageable) {
-        return findAll(spec,projectionType,pageable);
+        return findAll(spec, projectionType, pageable);
     }
 
     protected TypedQuery<Tuple> getTupleQuery(@Nullable Specification spec, Sort sort, ReturnedType returnedType) {
-        if (!returnedType.needsCustomConstruction()){
-            return getQuery(spec,sort);
+        if (!returnedType.needsCustomConstruction()) {
+            return getQuery(spec, sort);
         }
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> query = builder.createQuery(Tuple.class);
@@ -213,9 +257,10 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
         return toReturn;
     }
+
     private void applyQueryHints(Query query) {
         QueryHints queryHints = DefaultQueryHints.of(this.entityInformation, getRepositoryMethodMetadata());
-        if(queryHints==null){
+        if (queryHints == null) {
             queryHints = QueryHints.NoHints.INSTANCE;
         }
         for (Map.Entry<String, Object> hint : queryHints.withFetchGraphs(this.entityManager)) {
@@ -311,6 +356,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
 
         return from.join(attribute, JoinType.LEFT);
     }
+
     private static boolean isAlreadyFetched(From<?, ?> from, String attribute) {
 
         for (Fetch<?, ?> fetch : from.getFetches()) {
