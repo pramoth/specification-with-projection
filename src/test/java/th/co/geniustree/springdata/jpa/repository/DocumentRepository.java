@@ -10,25 +10,35 @@ import java.util.List;
  * Created by pramoth on 9/28/2016 AD.
  */
 public interface DocumentRepository extends JpaRepository<Document,Long>,JpaSpecificationExecutorWithProjection<Document, Long> {
-    public List<DocumentWithoutParent> findByParentIsNull();
 
-    public static interface DocumentWithoutParent{
+    List<DocumentWithoutParent> findByParentIsNull();
+
+    interface DocumentWithoutParent{
         Long getId();
         String getDescription();
         String getDocumentType();
         String getDocumentCategory();
         List<DocumentWithoutParent> getChild();
     }
-    public static interface OnlyId{
+
+    interface DocumentWithoutChild{
+        Long getId();
+        String getDescription();
+        String getDocumentType();
+        String getDocumentCategory();
+    }
+
+    interface OnlyId{
         Long getId();
     }
 
-    public static interface OnlyParent extends OnlyId{
+    interface OnlyParent extends OnlyId{
         OnlyId getParent();
     }
 
-    public static interface OpenProjection extends OnlyId{
+    interface OpenProjection extends OnlyId{
         @Value("#{target.description}")
         String getDescriptionString();
     }
+
 }
