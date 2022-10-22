@@ -20,12 +20,14 @@ import org.springframework.data.jpa.repository.query.Jpa21Utils;
 import org.springframework.data.jpa.repository.query.JpaEntityGraph;
 import org.springframework.data.jpa.repository.support.CrudMethodMetadata;
 import org.springframework.data.jpa.repository.support.JpaEntityInformation;
+import org.springframework.data.jpa.repository.support.MutableQueryHints;
+import org.springframework.data.jpa.repository.support.QueryHints;
 import org.springframework.data.util.Optionals;
 import org.springframework.util.Assert;
 
 import javax.persistence.EntityManager;
 import java.util.*;
-import java.util.Map.Entry;
+import java.util.function.BiConsumer;
 
 /**
  * Default implementation of {@link QueryHints}.
@@ -96,39 +98,22 @@ class DefaultQueryHints implements QueryHints {
 
 	/*
 	 * (non-Javadoc)
-	 * @see java.lang.Iterable#iterator()
+	 * @see org.springframework.data.jpa.repository.support.QueryHints#forEach(java.util.function.BiConsumer)
 	 */
 	@Override
-	public Iterator<Entry<String, Object>> iterator() {
-		return asMap().entrySet().iterator();
+	public void forEach(BiConsumer<String, Object> action) {
+		combineHints().forEach(action);
 	}
 
-	/*
-	 * (non-Javadoc)
-	 * @see org.springframework.data.jpa.repository.support.QueryHints#asMap()
-	 */
-	@Override
-	public Map<String, Object> asMap() {
-
-		Map<String, Object> hints = new HashMap<>();
-
-		if (forCounts) {
-			//hints.putAll(metadata.getQueryHintsForCount());
-		} else {
-			hints.putAll(metadata.getQueryHints());
-		}
-
-		hints.putAll(getFetchGraphs());
-
-		return hints;
+	private QueryHints combineHints() {
+		return QueryHints.from(forCounts ? metadata.getQueryHintsForCount() : metadata.getQueryHints(), getFetchGraphs());
 	}
 
-	private Map<String, Object> getFetchGraphs() {
-
+	private org.springframework.data.jpa.repository.support.QueryHints getFetchGraphs() {
 		return Optionals
 				.mapIfAllPresent(entityManager, metadata.getEntityGraph(),
-						(em, graph) -> Jpa21Utils.tryGetFetchGraphHints(em, getEntityGraph(graph), information.getJavaType()))
-				.orElse(Collections.emptyMap());
+						(em, graph) -> Jpa21Utils.getFetchGraphHint(em, getEntityGraph(graph), information.getJavaType()))
+				.orElse(new MutableQueryHints());
 	}
 
 	private JpaEntityGraph getEntityGraph(EntityGraph entityGraph) {

@@ -11,6 +11,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.query.JpaEntityGraph;
 import org.springframework.data.jpa.repository.query.QueryUtils;
 import org.springframework.data.jpa.repository.support.JpaEntityInformation;
+import org.springframework.data.jpa.repository.support.QueryHints;
 import org.springframework.data.jpa.repository.support.SimpleJpaRepository;
 import org.springframework.data.mapping.PropertyPath;
 import org.springframework.data.projection.ProjectionFactory;
@@ -218,9 +219,7 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         if(queryHints==null){
             queryHints = QueryHints.NoHints.INSTANCE;
         }
-        for (Map.Entry<String, Object> hint : queryHints.withFetchGraphs(this.entityManager)) {
-            query.setHint(hint.getKey(), hint.getValue());
-        }
+        queryHints.withFetchGraphs(this.entityManager).forEach(query::setHint);
     }
 
 
