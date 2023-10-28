@@ -25,7 +25,7 @@ import org.springframework.data.jpa.repository.support.QueryHints;
 import org.springframework.data.util.Optionals;
 import org.springframework.util.Assert;
 
-import javax.persistence.EntityManager;
+import jakarta.persistence.EntityManager;
 import java.util.*;
 import java.util.function.BiConsumer;
 

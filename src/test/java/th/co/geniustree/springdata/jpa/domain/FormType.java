@@ -1,6 +1,7 @@
 package th.co.geniustree.springdata.jpa.domain;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
+
 import java.io.Serializable;
 
 /**
