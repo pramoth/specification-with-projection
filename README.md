@@ -1,6 +1,8 @@
 # specification-with-projection
 Support Projections with `JpaSpecificationExecutor.findAll(Specification,Pageable)` for Spring Data JPA
 
+>version 3.x.x for Spring Data JPA 3.x (Spring Boot 3.x) 
+
 >version 2.x.x for Spring Data JPA 2.x (Spring Boot 2.x) 
 
 >version 1.x.x Spring Data JPA 1.x 
