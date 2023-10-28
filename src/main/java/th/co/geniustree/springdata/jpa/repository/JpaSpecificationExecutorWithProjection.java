@@ -17,7 +17,7 @@ import java.util.Optional;
 public interface JpaSpecificationExecutorWithProjection<T, ID> {
 
     <R> Optional<R> findById(ID id, Class<R> projectionClass);
-  
+
     <R> Optional<R> findOne(Specification<T> spec, Class<R> projectionClass);
 
     <R> Page<R> findAll(Specification<T> spec, Class<R> projectionClass, Pageable pageable);

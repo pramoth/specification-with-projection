@@ -1,9 +1,9 @@
-insert into form_type values('01', 'ก.01');
-insert into form_type values('04', 'ก.04');
-insert into form_type values('05', 'ก.05');
-insert into form_type values('06', 'ก.06');
-insert into form_type values('07', 'ก.07');
-insert into form_type values('08', 'ก.08');
+insert into form_type (id, form_desc) values('01', 'ก.01');
+insert into form_type (id, form_desc) values('04', 'ก.04');
+insert into form_type (id, form_desc) values('05', 'ก.05');
+insert into form_type (id, form_desc) values('06', 'ก.06');
+insert into form_type (id, form_desc) values('07', 'ก.07');
+insert into form_type (id, form_desc) values('08', 'ก.08');
 
 insert into document (id, description, category, type, FLAG_HAS_SUB, FORM_TYPE_ID) values(DOCUMENT_SEQ.nextVal, 'descriptiontest', 'ก.01', 'ต้นฉบับ', 'false', '01');
 insert into document (id, description, category, type, FLAG_HAS_SUB, FORM_TYPE_ID) values(DOCUMENT_SEQ.nextVal, 'description', 'ก.01', 'ต้นฉบับ', 'true', '01');

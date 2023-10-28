@@ -8,6 +8,14 @@ Support Projections with `JpaSpecificationExecutor.findAll(Specification,Pageabl
 ## How to use
 * add dependency to pom
 ```xml
+<!-- for Spring Data 3.x -->
+<dependency>
+    <groupId>th.co.geniustree.springdata.jpa</groupId>
+    <artifactId>specification-with-projections</artifactId>
+    <version>3.0.0</version>
+</dependency>
+```
+```xml
 <!-- for Spring Data 2.x -->
 <dependency>
     <groupId>th.co.geniustree.springdata.jpa</groupId>

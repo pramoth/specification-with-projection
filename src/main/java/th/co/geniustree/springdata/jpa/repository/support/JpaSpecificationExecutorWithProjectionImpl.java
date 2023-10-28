@@ -20,24 +20,24 @@ import org.springframework.data.repository.query.MyResultProcessor;
 import org.springframework.data.repository.query.ReturnTypeWarpper;
 import org.springframework.data.repository.query.ReturnedType;
 import org.springframework.data.repository.query.TupleConverter;
-import org.springframework.data.repository.support.PageableExecutionUtils;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import th.co.geniustree.springdata.jpa.repository.JpaSpecificationExecutorWithProjection;
 
-import javax.persistence.*;
-import javax.persistence.criteria.*;
-import javax.persistence.metamodel.Attribute;
-import javax.persistence.metamodel.Bindable;
-import javax.persistence.metamodel.ManagedType;
-import javax.persistence.metamodel.PluralAttribute;
+import jakarta.persistence.*;
+import jakarta.persistence.criteria.*;
+import jakarta.persistence.metamodel.Attribute;
+import jakarta.persistence.metamodel.Bindable;
+import jakarta.persistence.metamodel.ManagedType;
+import jakarta.persistence.metamodel.PluralAttribute;
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Member;
 import java.util.*;
 
-import static javax.persistence.metamodel.Attribute.PersistentAttributeType.*;
+import static jakarta.persistence.metamodel.Attribute.PersistentAttributeType.*;
 
 
 /**
@@ -68,11 +68,11 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         this.entityManager = entityManager;
         this.entityInformation = entityInformation;
     }
-    
+
     @Override
     public <R> Optional<R> findById(ID id, Class<R> projectionType) {
         final ReturnedType returnedType = ReturnTypeWarpper.of(projectionType, getDomainClass(), projectionFactory);
-        
+
         CriteriaBuilder builder = this.entityManager.getCriteriaBuilder();
         CriteriaQuery<Tuple> q = builder.createQuery(Tuple.class);
         Root<T> root = q.from(getDomainClass());
@@ -90,9 +90,9 @@ public class JpaSpecificationExecutorWithProjectionImpl<T, ID extends Serializab
         } else {
             throw new IllegalArgumentException("only except projection");
         }
-        
+
         final TypedQuery<Tuple> query = this.applyRepositoryMethodMetadata(this.entityManager.createQuery(q));
-        
+
         try {
             final MyResultProcessor resultProcessor = new MyResultProcessor(projectionFactory,returnedType);
             final R singleResult = resultProcessor.processResult(query.getSingleResult(), new TupleConverter(returnedType));
